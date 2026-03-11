@@ -67,6 +67,9 @@ COPY scripts/ /opt/hivebox/scripts/
 COPY config/ /etc/hivebox/
 RUN sh /opt/hivebox/scripts/build-images.sh
 
+# Make entrypoint executable.
+RUN chmod +x /opt/hivebox/scripts/entrypoint.sh
+
 # Expose the API port.
 EXPOSE 7070
 
@@ -75,5 +78,5 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD wget -qO- http://localhost:7070/healthz || exit 1
 
 # Default: start the daemon. Override with docker run args for CLI usage.
-ENTRYPOINT ["hivebox"]
+ENTRYPOINT ["/opt/hivebox/scripts/entrypoint.sh"]
 CMD ["daemon", "--port", "7070"]

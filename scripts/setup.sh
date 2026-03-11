@@ -4,6 +4,9 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/TetiAI/hivebox/main/scripts/setup.sh | bash
 #
+# With custom packages and OpenCode:
+#   curl -fsSL ... | HIVEBOX_PACKAGES="python3 nodejs git" HIVEBOX_OPENCODE_API_KEY=sk-... bash
+#
 # What it does:
 #   1. Installs Docker (if not present)
 #   2. Pulls the latest HiveBox image from GHCR
@@ -81,6 +84,7 @@ HIVEBOX_OPENCODE=${HIVEBOX_OPENCODE:-true}
 HIVEBOX_OPENCODE_API_KEY=${HIVEBOX_OPENCODE_API_KEY:-}
 HIVEBOX_OPENCODE_BASE_URL=${HIVEBOX_OPENCODE_BASE_URL:-}
 HIVEBOX_OPENCODE_MODEL=${HIVEBOX_OPENCODE_MODEL:-}
+HIVEBOX_PACKAGES=${HIVEBOX_PACKAGES:-}
 RUST_LOG=${RUST_LOG:-info}
 EOF
     ok "Wrote .env"
