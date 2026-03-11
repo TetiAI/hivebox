@@ -24,13 +24,31 @@ cargo build --release --target x86_64-unknown-linux-musl
 sudo cp target/x86_64-unknown-linux-musl/release/hivebox /usr/bin/
 ```
 
-### Docker
+### Docker (pre-built image)
+
+```bash
+docker run --privileged --cgroupns=host -p 7070:7070 \
+  -e HIVEBOX_API_KEY=your-secret-key \
+  -e HIVEBOX_PACKAGES="python3 nodejs git" \
+  ghcr.io/tetiai/hivebox:latest
+```
+
+### Docker (build from source)
 
 ```bash
 docker build -t hivebox .
-docker run --privileged -p 7070:7070 \
+docker run --privileged --cgroupns=host -p 7070:7070 \
   -e HIVEBOX_API_KEY=your-secret-key \
   hivebox
+```
+
+### One-line setup
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TetiAI/hivebox/main/scripts/setup.sh | \
+  HIVEBOX_API_KEY=your-key \
+  HIVEBOX_PACKAGES="python3 nodejs git" \
+  sudo -E bash
 ```
 
 ### Docker Compose

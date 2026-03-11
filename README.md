@@ -53,10 +53,11 @@ curl -fsSL https://raw.githubusercontent.com/TetiAI/hivebox/main/scripts/setup.s
   HIVEBOX_API_KEY=your-key \
   HIVEBOX_OPENCODE_API_KEY=sk-... \
   HIVEBOX_OPENCODE_MODEL=your-model \
+  HIVEBOX_PACKAGES="python3 nodejs git" \
   sudo -E bash
 ```
 
-All settings are saved in `/opt/hivebox/.env` and persist across restarts.
+`HIVEBOX_PACKAGES` installs extra Alpine packages into every sandbox at startup. All settings are saved in `/opt/hivebox/.env` and persist across restarts.
 
 ## Quick Start
 
@@ -253,6 +254,7 @@ docker build -t hivebox .
 # Run with privileged mode and host cgroup namespace
 docker run --privileged --cgroupns=host -p 7070:7070 \
   -e HIVEBOX_API_KEY=your-secret-key \
+  -e HIVEBOX_PACKAGES="python3 nodejs git" \
   hivebox
 ```
 
@@ -267,6 +269,7 @@ docker run --privileged --cgroupns=host -p 7070:7070 \
 | `HIVEBOX_OPENCODE_MODEL` | Default LLM model for all sandboxes | *(opencode default)* |
 | `HIVEBOX_OPENCODE_SKILLS_PATH` | Path to skills directory (mount custom skills) | `/root/.config/opencode/skills` |
 | `HIVEBOX_OPENCODE_MCPS` | JSON of global MCP servers added to every sandbox | *(none)* |
+| `HIVEBOX_PACKAGES` | Extra Alpine packages to install at container startup | *(none)* |
 
 All LLM and MCP settings can be overridden per-sandbox at creation time via the API (see [API docs](docs/api.md)).
 
