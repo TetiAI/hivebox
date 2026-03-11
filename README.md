@@ -1,6 +1,9 @@
 <p align="center">
   <img src="assets/logo.svg" alt="HiveBox" height="60">
 </p>
+<p align="center">
+  <img src="assets/teti-logo.svg" alt="TetiAI" height="17"> by <a href="https://teti.ai/hub">TetiAI</a>
+</p>
 
 **Native Linux sandboxing built for the AI era.**
 
@@ -334,4 +337,4 @@ HiveBox is **experimental software** under active development. It is **not produ
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+BSD 3 — see [LICENSE](LICENSE).
