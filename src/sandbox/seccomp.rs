@@ -31,9 +31,10 @@ use seccompiler::{
 use tracing::{debug, info};
 
 /// Available seccomp filter profiles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum SeccompProfile {
     /// Default profile: allows common syscalls for general workloads.
+    #[default]
     Default,
     /// Strict profile: minimal syscalls for pure computation tasks.
     Strict,
@@ -53,12 +54,6 @@ impl SeccompProfile {
                 s
             ),
         }
-    }
-}
-
-impl Default for SeccompProfile {
-    fn default() -> Self {
-        Self::Default
     }
 }
 

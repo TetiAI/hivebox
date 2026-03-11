@@ -1220,7 +1220,7 @@ fn format_system_time(t: SystemTime) -> String {
         year += 1;
     }
 
-    let months: &[u64] = if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
+    let months: &[u64] = if year % 4 == 0 && (year % 100 != 0 || year.is_multiple_of(400)) {
         &[31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     } else {
         &[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]

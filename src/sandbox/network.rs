@@ -56,10 +56,11 @@ const DEFAULT_GATEWAY: &str = "10.10.0.1";
 const IP_STATE_FILE: &str = "/var/lib/hivebox/network/ip_state.json";
 
 /// Network mode for a sandbox.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum NetworkMode {
     /// No network at all (not even loopback). Maximum isolation.
+    #[default]
     None,
 
     /// NAT to the internet via a veth pair on the default bridge.
@@ -69,12 +70,6 @@ pub enum NetworkMode {
     /// Shared bridge with other sandboxes in the same group.
     /// Sandboxes in the same group can communicate with each other.
     Shared { group: String },
-}
-
-impl Default for NetworkMode {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 impl std::fmt::Display for NetworkMode {
