@@ -87,25 +87,6 @@ pub async fn mcp_handler(
     Path(sandbox_id): Path<String>,
     req_parts: axum::extract::Request,
 ) -> (StatusCode, Json<JsonRpcResponse>) {
-    // Extract origin and auth from the incoming request for download URLs.
-    let host = req_parts
-        .headers()
-        .get("host")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("localhost:7070");
-    let base_url = format!("http://{host}");
-    let auth_header = req_parts
-        .headers()
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
-        .to_string();
-
-    let req_ctx = RequestContext {
-        base_url,
-        auth_header,
-    };
-
     let body = axum::body::to_bytes(req_parts.into_body(), 10 * 1024 * 1024).await;
     let req: JsonRpcRequest = match body {
         Ok(bytes) => match serde_json::from_slice(&bytes) {
@@ -184,7 +165,7 @@ pub async fn mcp_handler(
                 sandbox = sandbox_id,
                 "executing MCP tool via HTTP"
             );
-            let result = handle_tool_call(&state.manager, &sandbox_id, name, &args, &req_ctx).await;
+            let result = handle_tool_call(&state.manager, &sandbox_id, name, &args).await;
             JsonRpcResponse::success(id, result)
         }
         "ping" => JsonRpcResponse::success(id, serde_json::json!({})),
@@ -194,11 +175,6 @@ pub async fn mcp_handler(
     (StatusCode::OK, Json(response))
 }
 
-struct RequestContext {
-    base_url: String,
-    auth_header: String,
-}
-
 // ── Tool dispatch (calls SandboxManager directly) ───────────────────────
 
 async fn handle_tool_call(
@@ -206,7 +182,6 @@ async fn handle_tool_call(
     sandbox_id: &str,
     name: &str,
     args: &serde_json::Value,
-    ctx: &RequestContext,
 ) -> serde_json::Value {
     let result = match name {
         "exec" => tool_exec(manager, sandbox_id, args).await,
@@ -220,8 +195,6 @@ async fn handle_tool_call(
         "get_file_info" => tool_get_file_info(manager, sandbox_id, args).await,
         "create_directory" => tool_create_directory(manager, sandbox_id, args).await,
         "move_file" => tool_move_file(manager, sandbox_id, args).await,
-        "upload_file" => tool_upload_file(manager, sandbox_id, args).await,
-        "download_file" => tool_download_file(sandbox_id, args, ctx).await,
         "read_media_file" => tool_read_media_file(manager, sandbox_id, args).await,
         "list_directory_with_sizes" => {
             tool_list_directory_with_sizes(manager, sandbox_id, args).await
@@ -482,30 +455,6 @@ async fn tool_move_file(
     Ok(format!("Moved {source} → {destination}"))
 }
 
-async fn tool_upload_file(
-    manager: &Arc<SandboxManager>,
-    sandbox_id: &str,
-    args: &serde_json::Value,
-) -> anyhow::Result<String> {
-    let path = args["path"]
-        .as_str()
-        .ok_or_else(|| anyhow::anyhow!("missing 'path'"))?;
-
-    let content = if let Some(b64) = args.get("content_base64").and_then(|v| v.as_str()) {
-        BASE64
-            .decode(b64)
-            .map_err(|_| anyhow::anyhow!("invalid base64 content"))?
-    } else if let Some(text) = args.get("content").and_then(|v| v.as_str()) {
-        text.as_bytes().to_vec()
-    } else {
-        anyhow::bail!("either 'content' or 'content_base64' is required");
-    };
-
-    let size = content.len();
-    manager.write_file(sandbox_id, path, &content).await?;
-    Ok(format!("Uploaded to {path} ({size} bytes)"))
-}
-
 async fn tool_read_media_file(
     manager: &Arc<SandboxManager>,
     sandbox_id: &str,
@@ -585,39 +534,3 @@ async fn tool_glob(
     }
 }
 
-async fn tool_download_file(
-    sandbox_id: &str,
-    args: &serde_json::Value,
-    ctx: &RequestContext,
-) -> anyhow::Result<String> {
-    let path = args["path"]
-        .as_str()
-        .ok_or_else(|| anyhow::anyhow!("missing 'path'"))?;
-
-    let encoded_path: String = path
-        .bytes()
-        .map(|b| {
-            if b.is_ascii_alphanumeric() || b == b'/' || b == b'-' || b == b'_' || b == b'.' {
-                format!("{}", b as char)
-            } else {
-                format!("%{:02X}", b)
-            }
-        })
-        .collect();
-    let url = format!(
-        "{}/api/v1/hiveboxes/{sandbox_id}/files?path={encoded_path}",
-        ctx.base_url
-    );
-    let mut cmd = format!(
-        "curl -o {filename} \"{url}\"",
-        filename = path.rsplit('/').next().unwrap_or("download")
-    );
-    if !ctx.auth_header.is_empty() {
-        cmd = format!(
-            "curl -o {filename} -H '{auth}' \"{url}\"",
-            filename = path.rsplit('/').next().unwrap_or("download"),
-            auth = ctx.auth_header
-        );
-    }
-    Ok(format!("Download: {url}\n\n{cmd}"))
-}

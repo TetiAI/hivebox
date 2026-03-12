@@ -320,31 +320,6 @@ pub fn tool_definitions() -> serde_json::Value {
             }
         },
         {
-            "name": "upload_file",
-            "description": "Upload a file to the sandbox via the REST API. Supports binary files via base64 encoding. Use this instead of write_file for binary content.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string", "description": "Destination path inside the sandbox" },
-                    "content_base64": { "type": "string", "description": "File content encoded as base64" },
-                    "content": { "type": "string", "description": "File content as plain text (use content_base64 for binary)" }
-                },
-                "required": ["path"]
-            }
-        },
-        {
-            "name": "download_file",
-            "description": "Download a file from the sandbox via the REST API. Returns text content directly, or base64-encoded content for binary files.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string", "description": "File path inside the sandbox" },
-                    "base64": { "type": "boolean", "description": "If true, return content as base64 (for binary files). Default: false" }
-                },
-                "required": ["path"]
-            }
-        },
-        {
             "name": "read_media_file",
             "description": "Read an image or media file as base64-encoded content with MIME type. Useful for images (PNG, JPG, GIF, WebP), audio (MP3, WAV), video, and PDFs.",
             "inputSchema": {
@@ -400,8 +375,6 @@ async fn handle_tool_call(
         "get_file_info" => tool_get_file_info(client, args).await,
         "create_directory" => tool_create_directory(client, args).await,
         "move_file" => tool_move_file(client, args).await,
-        "upload_file" => tool_upload_file(client, args).await,
-        "download_file" => tool_download_file(client, args).await,
         "read_media_file" => tool_read_media_file(client, args).await,
         "list_directory_with_sizes" => tool_list_directory_with_sizes(client, args).await,
         "glob" => tool_glob(client, args).await,
@@ -570,22 +543,6 @@ async fn tool_move_file(client: &HiveboxClient, args: &serde_json::Value) -> Res
     Ok(format!("Moved {source} → {destination}"))
 }
 
-async fn tool_upload_file(client: &HiveboxClient, args: &serde_json::Value) -> Result<String> {
-    let path = args["path"].as_str().context("missing 'path'")?;
-
-    let content = if let Some(b64) = args.get("content_base64").and_then(|v| v.as_str()) {
-        BASE64.decode(b64).context("invalid base64 content")?
-    } else if let Some(text) = args.get("content").and_then(|v| v.as_str()) {
-        text.as_bytes().to_vec()
-    } else {
-        anyhow::bail!("either 'content' or 'content_base64' is required");
-    };
-
-    let size = content.len();
-    client.write_file(path, &content).await?;
-    Ok(format!("Uploaded to {path} ({size} bytes)"))
-}
-
 async fn tool_read_media_file(client: &HiveboxClient, args: &serde_json::Value) -> Result<String> {
     let path = args["path"].as_str().context("missing 'path'")?;
     let content = client.read_file(path).await?;
@@ -651,23 +608,6 @@ async fn tool_glob(client: &HiveboxClient, args: &serde_json::Value) -> Result<S
         Ok("No files matched the pattern.".to_string())
     } else {
         Ok(resp.stdout)
-    }
-}
-
-async fn tool_download_file(client: &HiveboxClient, args: &serde_json::Value) -> Result<String> {
-    let path = args["path"].as_str().context("missing 'path'")?;
-    let as_base64 = args
-        .get("base64")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    let content = client.read_file(path).await?;
-
-    if as_base64 {
-        Ok(BASE64.encode(&content))
-    } else {
-        String::from_utf8(content)
-            .context("file is not valid UTF-8 — use base64: true for binary files")
     }
 }
 

@@ -12,9 +12,10 @@
 //! | GET    | /api/v1/hiveboxes/:id         | Get sandbox details      |
 //! | POST   | /api/v1/hiveboxes/:id/exec    | Execute command          |
 //! | POST   | /api/v1/hiveboxes/:id/mcp     | MCP over HTTP            |
-//! | PUT    | /api/v1/hiveboxes/:id/files   | Upload file              |
-//! | GET    | /api/v1/hiveboxes/:id/files   | Download file            |
-//! | DELETE | /api/v1/hiveboxes/:id         | Destroy sandbox          |
+//! | PUT    | /api/v1/hiveboxes/:id/files      | Upload file              |
+//! | GET    | /api/v1/hiveboxes/:id/files      | Download file            |
+//! | GET    | /api/v1/hiveboxes/:id/files/list | List files recursively   |
+//! | DELETE | /api/v1/hiveboxes/:id            | Destroy sandbox          |
 //!
 //! # Server configuration
 //!
@@ -90,6 +91,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/v1/hiveboxes/{id}/mcp", post(mcp::mcp_handler))
         .route("/api/v1/hiveboxes/{id}/files", put(handlers::upload_file))
         .route("/api/v1/hiveboxes/{id}/files", get(handlers::download_file))
+        .route(
+            "/api/v1/hiveboxes/{id}/files/list",
+            get(handlers::list_files),
+        )
         .route(
             "/api/v1/hiveboxes/{id}/opencode/{*rest}",
             any(opencode::opencode_proxy),
@@ -170,6 +175,10 @@ fn build_router_with_auth(state: AppState, api_key: String) -> Router {
         .route("/api/v1/hiveboxes/{id}/mcp", post(mcp::mcp_handler))
         .route("/api/v1/hiveboxes/{id}/files", put(handlers::upload_file))
         .route("/api/v1/hiveboxes/{id}/files", get(handlers::download_file))
+        .route(
+            "/api/v1/hiveboxes/{id}/files/list",
+            get(handlers::list_files),
+        )
         .route(
             "/api/v1/hiveboxes/{id}/opencode/{*rest}",
             any(opencode::opencode_proxy),

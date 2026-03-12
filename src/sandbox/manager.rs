@@ -99,6 +99,16 @@ struct ManagedSandbox {
     opencode_config_dir: Option<PathBuf>,
 }
 
+/// A file or directory entry returned by `list_files`.
+#[derive(Debug, Clone, Serialize)]
+pub struct FileEntry {
+    pub name: String,
+    pub path: String,
+    pub entry_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+}
+
 /// Public snapshot of sandbox state (for API responses).
 #[derive(Debug, Clone)]
 pub struct SandboxInfo {
@@ -685,6 +695,71 @@ impl SandboxManager {
             .with_context(|| format!("failed to read {}", full_path.display()))?;
 
         Ok(content)
+    }
+
+    /// List files and directories at a given path inside a sandbox.
+    /// Returns entries with name, type (file/directory), and size.
+    pub async fn list_files(&self, sandbox_id: &str, path: &str) -> Result<Vec<FileEntry>> {
+        let sandboxes = self.sandboxes.read().await;
+        let sandbox = sandboxes
+            .get(sandbox_id)
+            .ok_or_else(|| anyhow::anyhow!("sandbox '{}' not found", sandbox_id))?;
+
+        let rootfs = sandbox
+            .rootfs_path
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("sandbox has no rootfs"))?;
+
+        let full_path = rootfs.join(path.trim_start_matches('/'));
+        if !full_path.is_dir() {
+            bail!("path '{}' is not a directory", path);
+        }
+
+        let mut entries = Vec::new();
+        Self::collect_entries(&full_path, path.trim_end_matches('/'), &mut entries)?;
+        entries.sort_by(|a, b| a.path.cmp(&b.path));
+
+        Ok(entries)
+    }
+
+    /// Recursively collect file entries from a directory.
+    fn collect_entries(
+        fs_path: &std::path::Path,
+        logical_path: &str,
+        entries: &mut Vec<FileEntry>,
+    ) -> Result<()> {
+        let read_dir = std::fs::read_dir(fs_path)
+            .with_context(|| format!("failed to read directory {}", fs_path.display()))?;
+
+        for entry in read_dir {
+            let entry = entry?;
+            let metadata = entry.metadata()?;
+            let name = entry.file_name().to_string_lossy().to_string();
+            let entry_logical = if logical_path.is_empty() {
+                format!("/{name}")
+            } else {
+                format!("{logical_path}/{name}")
+            };
+
+            if metadata.is_dir() {
+                entries.push(FileEntry {
+                    name: name.clone(),
+                    path: entry_logical.clone(),
+                    entry_type: "directory".to_string(),
+                    size: None,
+                });
+                Self::collect_entries(&entry.path(), &entry_logical, entries)?;
+            } else if metadata.is_file() {
+                entries.push(FileEntry {
+                    name,
+                    path: entry_logical,
+                    entry_type: "file".to_string(),
+                    size: Some(metadata.len()),
+                });
+            }
+        }
+
+        Ok(())
     }
 
     /// Background task that periodically destroys expired sandboxes.

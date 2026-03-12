@@ -164,6 +164,14 @@ pub struct DestroySandboxResponse {
     pub status: String,
 }
 
+/// Response for `GET /api/v1/hiveboxes/:id/files/list`.
+#[derive(Debug, Serialize)]
+pub struct ListFilesResponse {
+    pub path: String,
+    pub entries: Vec<crate::sandbox::manager::FileEntry>,
+    pub total: usize,
+}
+
 /// Generic error response.
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {

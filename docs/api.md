@@ -238,6 +238,42 @@ Downloads a file from the sandbox filesystem.
 
 ---
 
+### List Files
+
+```
+GET /api/v1/hiveboxes/:id/files/list?path=/path/in/sandbox
+```
+
+Lists all files and directories recursively from the given path inside the sandbox.
+
+**Query parameters**:
+- `path` (optional): directory path inside the sandbox (default: `/`)
+
+**Response** (`200 OK`):
+```json
+{
+  "path": "/workspace",
+  "entries": [
+    { "name": "src", "path": "/workspace/src", "entry_type": "directory" },
+    { "name": "main.rs", "path": "/workspace/src/main.rs", "entry_type": "file", "size": 1234 },
+    { "name": "README.md", "path": "/workspace/README.md", "entry_type": "file", "size": 567 }
+  ],
+  "total": 3
+}
+```
+
+Each entry includes:
+| Field | Description |
+|-------|-------------|
+| `name` | File or directory name |
+| `path` | Full logical path inside the sandbox |
+| `entry_type` | `"file"` or `"directory"` |
+| `size` | Size in bytes (files only, omitted for directories) |
+
+**Errors**: `404 Not Found` if sandbox doesn't exist. `500` if path is not a directory.
+
+---
+
 ### Destroy Sandbox
 
 ```
@@ -332,7 +368,7 @@ For local setups, you can also use the `hivebox mcp` CLI command which communica
 
 ### Available tools
 
-Both transports expose 16 tools:
+Both transports expose 14 tools:
 
 | Tool | Description |
 |------|-------------|
@@ -348,10 +384,10 @@ Both transports expose 16 tools:
 | `get_file_info` | File metadata (stat) |
 | `create_directory` | Create directories |
 | `move_file` | Move or rename files |
-| `upload_file` | Upload file (supports base64 for binary) |
-| `download_file` | Download file (supports base64 for binary) |
 | `read_media_file` | Read images/media as base64 with MIME type |
 | `list_directory_with_sizes` | List directory with human-readable sizes |
+
+File upload/download is available via the REST API endpoints (`PUT/GET /api/v1/hiveboxes/:id/files`).
 
 ---
 

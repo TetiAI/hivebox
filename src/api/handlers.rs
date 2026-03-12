@@ -254,6 +254,37 @@ pub async fn download_file(
     })
 }
 
+/// `GET /api/v1/hiveboxes/:id/files/list` — List files and directories in a sandbox.
+pub async fn list_files(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
+) -> Result<Json<ListFilesResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let manager = &state.manager;
+    let path = params.get("path").map(|s| s.as_str()).unwrap_or("/");
+
+    let entries = manager.list_files(&id, path).await.map_err(|e| {
+        let status = if e.to_string().contains("not found") {
+            StatusCode::NOT_FOUND
+        } else {
+            StatusCode::INTERNAL_SERVER_ERROR
+        };
+        (
+            status,
+            Json(ErrorResponse {
+                error: format!("{e}"),
+            }),
+        )
+    })?;
+
+    let total = entries.len();
+    Ok(Json(ListFilesResponse {
+        path: path.to_string(),
+        entries,
+        total,
+    }))
+}
+
 /// `GET /api/v1/analytics` — Get metrics history.
 ///
 /// Query params:
