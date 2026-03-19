@@ -18,6 +18,7 @@
 //! which executes it inside the sandbox via nsenter.
 
 use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
@@ -351,6 +352,26 @@ pub fn tool_definitions() -> serde_json::Value {
                 },
                 "required": ["pattern"]
             }
+        },
+        {
+            "name": "list_skills",
+            "description": "List all available skills with their names and descriptions. Call this first to discover what skills are available before using one.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            }
+        },
+        {
+            "name": "read_skill_file",
+            "description": "Read a file from a skill directory (e.g. SKILL.md for instructions, or a reference file like pptxgenjs.md). Always read SKILL.md first to understand how to use the skill.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "skill": { "type": "string", "description": "Skill name (e.g. 'pptx', 'pdf', 'docx')" },
+                    "file": { "type": "string", "description": "File to read (defaults to SKILL.md)" }
+                },
+                "required": ["skill"]
+            }
         }
     ])
 }
@@ -360,6 +381,7 @@ pub fn tool_definitions() -> serde_json::Value {
 /// Dispatches an MCP tools/call request to the appropriate handler.
 async fn handle_tool_call(
     client: &HiveboxClient,
+    skills_path: &Path,
     name: &str,
     args: &serde_json::Value,
 ) -> serde_json::Value {
@@ -378,6 +400,8 @@ async fn handle_tool_call(
         "read_media_file" => tool_read_media_file(client, args).await,
         "list_directory_with_sizes" => tool_list_directory_with_sizes(client, args).await,
         "glob" => tool_glob(client, args).await,
+        "list_skills" => tool_list_skills(skills_path).await,
+        "read_skill_file" => tool_read_skill_file(skills_path, args).await,
         _ => Err(anyhow::anyhow!("unknown tool: {name}")),
     };
 
@@ -613,8 +637,73 @@ async fn tool_glob(client: &HiveboxClient, args: &serde_json::Value) -> Result<S
 
 // ── MCP server main loop ────────────────────────────────────────────────
 
+async fn tool_list_skills(skills_path: &Path) -> Result<String> {
+    if !skills_path.exists() {
+        return Ok(format!(
+            "Skills directory not found: {}",
+            skills_path.display()
+        ));
+    }
+    let mut skills = Vec::new();
+    for entry in std::fs::read_dir(skills_path)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        let skill_md = entry.path().join("SKILL.md");
+        let description = std::fs::read_to_string(&skill_md)
+            .ok()
+            .and_then(|s| {
+                s.lines()
+                    .find(|l| l.starts_with("# "))
+                    .map(|l| l.trim_start_matches("# ").to_string())
+            })
+            .unwrap_or_default();
+        skills.push(format!("- **{name}**: {description}"));
+    }
+    skills.sort();
+    if skills.is_empty() {
+        return Ok("No skills available.".to_string());
+    }
+    Ok(format!(
+        "Available skills:\n\n{}\n\nUse read_skill_file to read a skill's instructions.",
+        skills.join("\n")
+    ))
+}
+
+async fn tool_read_skill_file(skills_path: &Path, args: &serde_json::Value) -> Result<String> {
+    let skill = args["skill"].as_str().context("missing 'skill'")?;
+    let file = args
+        .get("file")
+        .and_then(|v| v.as_str())
+        .unwrap_or("SKILL.md");
+
+    if skill.contains("..") || skill.contains('/') || skill.contains('\\') {
+        anyhow::bail!("invalid skill name: {skill}");
+    }
+    if file.contains("..") || file.starts_with('/') || file.starts_with('\\') {
+        anyhow::bail!("invalid file name: {file}");
+    }
+
+    let path = skills_path.join(skill).join(file);
+    if !path.exists() {
+        anyhow::bail!("not found: {skill}/{file}");
+    }
+    std::fs::read_to_string(&path)
+        .with_context(|| format!("failed to read {}", path.display()))
+}
+
 /// Runs the MCP server over stdin/stdout (newline-delimited JSON-RPC 2.0).
-pub async fn run(sandbox_id: String, api_url: String, api_key: Option<String>) -> Result<()> {
+pub async fn run(
+    sandbox_id: String,
+    api_url: String,
+    api_key: Option<String>,
+    skills_path: PathBuf,
+) -> Result<()> {
     let client = HiveboxClient::new(sandbox_id.clone(), api_url, api_key);
 
     let stdin = tokio::io::stdin();
@@ -681,7 +770,7 @@ pub async fn run(sandbox_id: String, api_url: String, api_key: Option<String>) -
                 let args = params.get("arguments").cloned().unwrap_or_default();
 
                 debug!(tool = name, "executing tool");
-                let result = handle_tool_call(&client, name, &args).await;
+                let result = handle_tool_call(&client, &skills_path, name, &args).await;
                 JsonRpcResponse::success(id, result)
             }
             "ping" => JsonRpcResponse::success(id, serde_json::json!({})),

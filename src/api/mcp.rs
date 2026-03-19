@@ -21,6 +21,8 @@
 
 use std::sync::Arc;
 
+use anyhow::Context as _;
+
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::Json;
@@ -200,6 +202,8 @@ async fn handle_tool_call(
             tool_list_directory_with_sizes(manager, sandbox_id, args).await
         }
         "glob" => tool_glob(manager, sandbox_id, args).await,
+        "list_skills" => tool_list_skills(manager).await,
+        "read_skill_file" => tool_read_skill_file(manager, args).await,
         _ => Err(anyhow::anyhow!("unknown tool: {name}")),
     };
 
@@ -501,6 +505,74 @@ async fn tool_list_directory_with_sizes(
     let path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
     let result = exec_cmd(manager, sandbox_id, &format!("ls -lhS '{path}'")).await?;
     Ok(result.stdout)
+}
+
+async fn tool_list_skills(manager: &Arc<SandboxManager>) -> anyhow::Result<String> {
+    let skills_path = manager.skills_path();
+    if !skills_path.exists() {
+        return Ok(format!(
+            "Skills directory not found: {}",
+            skills_path.display()
+        ));
+    }
+    let mut skills = Vec::new();
+    for entry in std::fs::read_dir(skills_path)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        let skill_md = entry.path().join("SKILL.md");
+        let description = std::fs::read_to_string(&skill_md)
+            .ok()
+            .and_then(|s| {
+                s.lines()
+                    .find(|l| l.starts_with("# "))
+                    .map(|l| l.trim_start_matches("# ").to_string())
+            })
+            .unwrap_or_default();
+        skills.push(format!("- **{name}**: {description}"));
+    }
+    skills.sort();
+    if skills.is_empty() {
+        return Ok("No skills available.".to_string());
+    }
+    Ok(format!(
+        "Available skills:\n\n{}\n\nUse read_skill_file to read a skill's instructions.",
+        skills.join("\n")
+    ))
+}
+
+async fn tool_read_skill_file(
+    manager: &Arc<SandboxManager>,
+    args: &serde_json::Value,
+) -> anyhow::Result<String> {
+    let skill = args["skill"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("missing 'skill'"))?;
+    let file = args
+        .get("file")
+        .and_then(|v| v.as_str())
+        .unwrap_or("SKILL.md");
+
+    // Prevent path traversal.
+    if skill.contains("..") || skill.contains('/') || skill.contains('\\') {
+        anyhow::bail!("invalid skill name: {skill}");
+    }
+    if file.contains("..") || file.starts_with('/') || file.starts_with('\\') {
+        anyhow::bail!("invalid file name: {file}");
+    }
+
+    let path = manager.skills_path().join(skill).join(file);
+    if !path.exists() {
+        anyhow::bail!("not found: {skill}/{file}");
+    }
+    let content = std::fs::read_to_string(&path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
+    Ok(content)
 }
 
 async fn tool_glob(

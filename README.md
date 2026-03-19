@@ -133,7 +133,7 @@ hivebox create --name myworkspace --memory 512m
 }
 ```
 
-3. The AI client now has 16 tools to operate inside the sandbox: `exec`, `read_file`, `read_multiple_files`, `write_file`, `edit_file`, `list_directory`, `directory_tree`, `search_files`, `glob`, `get_file_info`, `create_directory`, `move_file`, `upload_file`, `download_file`, `read_media_file`, `list_directory_with_sizes`.
+3. The AI client now has 18 tools to operate inside the sandbox: `exec`, `read_file`, `read_multiple_files`, `write_file`, `edit_file`, `list_directory`, `directory_tree`, `search_files`, `glob`, `get_file_info`, `create_directory`, `move_file`, `upload_file`, `download_file`, `read_media_file`, `list_directory_with_sizes`, `list_skills`, `read_skill_file`.
 
 ### OpenCode Agent — AI per Sandbox
 
@@ -165,6 +165,28 @@ curl -X POST http://localhost:7070/api/v1/hiveboxes/my-agent/opencode/session/{S
 ```
 
 OpenCode is enabled by default. Disable it with `HIVEBOX_OPENCODE=false`.
+
+### Skills — Domain Expertise for the Agent
+
+Each hivebox agent has access to a library of specialized skills (PDF, PPTX, DOCX, XLSX, and more). Skills are served directly by the hivebox MCP via two tools:
+
+- **`list_skills`** — lists available skills with their descriptions
+- **`read_skill_file`** — reads any file from a skill directory (SKILL.md for instructions, reference files for library docs)
+
+The agent follows a progressive disclosure pattern:
+1. Calls `list_skills` to discover what's available
+2. Calls `read_skill_file` to load a skill's instructions
+3. Reads any referenced support files (e.g. `pptxgenjs.md`, `forms.md`)
+4. Executes the skill's scripts via `exec`
+
+Skills are stored in `/opt/hivebox/skills/` (inside the container). Anthropic's pre-built skills are included by default. To add custom skills:
+
+```bash
+# At runtime — mount a skill directory
+docker run ... -v /path/to/my-skill:/opt/hivebox/skills/my-skill:ro hivebox
+
+# At build time — add a folder to skills/ in this repo
+```
 
 ### Web Dashboard
 
@@ -270,7 +292,7 @@ docker run --privileged --cgroupns=host -p 7070:7070 \
 | `HIVEBOX_OPENCODE_BASE_URL` | Default LLM base URL for all sandboxes | *(opencode default)* |
 | `HIVEBOX_OPENCODE_API_KEY` | Default LLM API key for all sandboxes | *(opencode default)* |
 | `HIVEBOX_OPENCODE_MODEL` | Default LLM model for all sandboxes | *(opencode default)* |
-| `HIVEBOX_OPENCODE_SKILLS_PATH` | Path to skills directory (mount custom skills) | `/root/.config/opencode/skills` |
+| `HIVEBOX_OPENCODE_SKILLS_PATH` | Path to skills directory | `/opt/hivebox/skills` |
 | `HIVEBOX_OPENCODE_MCPS` | JSON of global MCP servers added to every sandbox | *(none)* |
 | `HIVEBOX_PACKAGES` | Extra Alpine packages to install at container startup | *(none)* |
 | `HIVEBOX_PIP_PACKAGES` | Extra pip packages to install at container startup | *(none)* |

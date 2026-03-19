@@ -178,12 +178,17 @@ impl SandboxManager {
             port: 7070,
             api_key: None,
             opencode_enabled: true,
-            skills_path: PathBuf::from("/root/.config/opencode/skills"),
+            skills_path: PathBuf::from("/opt/hivebox/skills"),
             global_mcps: None,
             llm_base_url: None,
             llm_api_key: None,
             llm_model: None,
         })
+    }
+
+    /// Returns the path to the skills directory on the host.
+    pub fn skills_path(&self) -> &std::path::Path {
+        &self.daemon_config.skills_path
     }
 
     pub fn with_config(daemon_config: DaemonConfig) -> Self {
@@ -323,6 +328,25 @@ impl SandboxManager {
             )
         })?;
 
+        // Create config_dir/.config/opencode → config_dir/opencode symlink.
+        //
+        // opencode may resolve skill paths via $HOME/.config/opencode/skills/ in some
+        // code paths even when XDG_CONFIG_HOME is set, causing it to "see" skills
+        // (via XDG) but fail to find their directories (via HOME).  By setting
+        // HOME=config_dir and symlinking .config/opencode → opencode, both paths
+        // resolve to the same directory and skill discovery is consistent.
+        let home_config = config_dir.join(".config");
+        std::fs::create_dir_all(&home_config)?;
+        let home_opencode = home_config.join("opencode");
+        if !home_opencode.exists() {
+            std::os::unix::fs::symlink(&opencode_dir, &home_opencode).with_context(|| {
+                format!(
+                    "failed to create HOME/.config/opencode symlink: {}",
+                    home_opencode.display()
+                )
+            })?;
+        }
+
         // Build the opencode config JSON.
         let mut mcp_headers = serde_json::Map::new();
         if let Some(ref key) = self.daemon_config.api_key {
@@ -335,9 +359,15 @@ impl SandboxManager {
         // Build instructions for the AI agent.
         let default_instructions = vec![
             format!("You are operating inside a HiveBox sandbox (ID: {sandbox_id}) running Alpine Linux (musl libc)."),
-            "Use apk for package management (e.g., `apk add python3`).".to_string(),
+            "Use apk for package management (e.g., `apk add python3 nodejs npm git`).".to_string(),
             "The sandbox has limited resources and no persistent storage — files are lost on destroy.".to_string(),
             "Use the MCP tools available to you (exec, read_file, write_file, etc.) to interact with the sandbox filesystem.".to_string(),
+            "You have access to specialized skills. When a task involves a specific domain (PDF, PPTX, DOCX, XLSX, etc.), follow this workflow:".to_string(),
+            "  1. Call list_skills to discover what skills are available.".to_string(),
+            "  2. Call read_skill_file(skill, 'SKILL.md') to load the skill's instructions.".to_string(),
+            "  3. If the skill references additional files (e.g. pptxgenjs.md, forms.md), call read_skill_file to read them.".to_string(),
+            "  4. Follow the skill instructions exactly, using exec to run scripts and install required packages.".to_string(),
+            "Always load the relevant skill BEFORE attempting a specialized task.".to_string(),
         ];
         let instructions: Vec<String> = std::env::var("HIVEBOX_OPENCODE_INSTRUCTIONS")
             .map(|s| s.lines().map(|l| l.to_string()).collect())
@@ -469,6 +499,7 @@ impl SandboxManager {
         let mut cmd = Command::new("opencode");
         cmd.args(["serve", "--port", &port.to_string()])
             .env("XDG_CONFIG_HOME", &config_dir)
+            .env("HOME", &config_dir)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());

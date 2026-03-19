@@ -171,6 +171,10 @@ pub struct McpArgs {
     /// HiveBox daemon API key (if auth is enabled).
     #[arg(long, env = "HIVEBOX_API_KEY")]
     pub api_key: Option<String>,
+
+    /// Path to the skills directory on the host.
+    #[arg(long, default_value = "/opt/hivebox/skills", env = "HIVEBOX_OPENCODE_SKILLS_PATH")]
+    pub skills_path: std::path::PathBuf,
 }
 
 /// Arguments for the `daemon` command.
