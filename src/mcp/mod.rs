@@ -189,6 +189,9 @@ fn build_mcp_instructions() -> String {
         s.push_str(&format!("Pre-installed npm global packages: {}. ", pkgs));
     }
     s.push_str(
+        "When installing pip packages, always use: pip install --break-system-packages <pkg>. ",
+    );
+    s.push_str(
         "Use the 'exec' tool for shell commands and the file tools for reading/writing files.",
     );
     s

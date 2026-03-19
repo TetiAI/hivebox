@@ -225,6 +225,9 @@ impl SandboxManager {
             s.push_str("Use 'apk add <pkg>' only for packages not listed above. ");
         }
         s.push_str(
+            "When installing pip packages, always use: pip install --break-system-packages <pkg>. ",
+        );
+        s.push_str(
             "Use the 'exec' tool for shell commands and the file tools for reading/writing files.",
         );
         s
@@ -400,6 +403,7 @@ impl SandboxManager {
             format!("You are operating inside a HiveBox sandbox (ID: {sandbox_id}) running Alpine Linux (musl libc)."),
             "The sandbox has limited resources and no persistent storage — files are lost on destroy.".to_string(),
             "Use the MCP tools available to you (exec, read_file, write_file, etc.) to interact with the sandbox filesystem.".to_string(),
+            "When installing pip packages, always use: pip install --break-system-packages <pkg>".to_string(),
         ];
         // Add pre-installed package info so the agent doesn't waste time reinstalling.
         if let Some(ref pkgs) = self.daemon_config.installed_packages {
