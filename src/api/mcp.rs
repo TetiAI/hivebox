@@ -576,10 +576,7 @@ async fn tool_glob(
     let pattern = args["pattern"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("missing 'pattern'"))?;
-    let path = args
-        .get("path")
-        .and_then(|v| v.as_str())
-        .unwrap_or("/");
+    let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("/");
 
     let cmd = if pattern.contains('/') {
         format!(

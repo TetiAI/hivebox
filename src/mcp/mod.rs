@@ -633,10 +633,7 @@ async fn tool_list_directory_with_sizes(
 
 async fn tool_glob(client: &HiveboxClient, args: &serde_json::Value) -> Result<String> {
     let pattern = args["pattern"].as_str().context("missing 'pattern'")?;
-    let path = args
-        .get("path")
-        .and_then(|v| v.as_str())
-        .unwrap_or("/");
+    let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("/");
 
     // Use find with -name/-path depending on whether pattern contains /
     let cmd = if pattern.contains('/') {
