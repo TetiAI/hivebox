@@ -219,7 +219,12 @@ fn handle_daemon(args: cli::DaemonArgs) -> Result<()> {
 /// Handles `hivebox mcp` — run as MCP server for a sandbox.
 fn handle_mcp(args: cli::McpArgs) -> Result<()> {
     let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(mcp::run(args.sandbox, args.api_url, args.api_key, args.skills_path))
+    rt.block_on(mcp::run(
+        args.sandbox,
+        args.api_url,
+        args.api_key,
+        args.skills_path,
+    ))
 }
 
 /// Formats seconds into a human-readable duration string.

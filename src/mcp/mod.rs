@@ -693,8 +693,7 @@ async fn tool_read_skill_file(skills_path: &Path, args: &serde_json::Value) -> R
     if !path.exists() {
         anyhow::bail!("not found: {skill}/{file}");
     }
-    std::fs::read_to_string(&path)
-        .with_context(|| format!("failed to read {}", path.display()))
+    std::fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))
 }
 
 /// Runs the MCP server over stdin/stdout (newline-delimited JSON-RPC 2.0).

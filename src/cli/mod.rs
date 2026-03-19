@@ -173,7 +173,11 @@ pub struct McpArgs {
     pub api_key: Option<String>,
 
     /// Path to the skills directory on the host.
-    #[arg(long, default_value = "/opt/hivebox/skills", env = "HIVEBOX_OPENCODE_SKILLS_PATH")]
+    #[arg(
+        long,
+        default_value = "/opt/hivebox/skills",
+        env = "HIVEBOX_OPENCODE_SKILLS_PATH"
+    )]
     pub skills_path: std::path::PathBuf,
 }
 
