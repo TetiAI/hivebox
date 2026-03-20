@@ -183,10 +183,16 @@ fn build_mcp_instructions() -> String {
         ));
     }
     if let Ok(pkgs) = std::env::var("HIVEBOX_PIP_PACKAGES") {
-        s.push_str(&format!("Pre-installed pip packages: {}. ", pkgs));
+        s.push_str(&format!(
+            "Pre-installed pip packages (already installed, DO NOT run pip install for these): {}. ",
+            pkgs
+        ));
     }
     if let Ok(pkgs) = std::env::var("HIVEBOX_NPM_PACKAGES") {
-        s.push_str(&format!("Pre-installed npm global packages: {}. ", pkgs));
+        s.push_str(&format!(
+            "Pre-installed npm global packages (already installed, DO NOT run npm install for these): {}. ",
+            pkgs
+        ));
     }
     s.push_str(
         "When installing pip packages, always use: pip install --break-system-packages <pkg>. ",

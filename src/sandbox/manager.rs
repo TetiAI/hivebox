@@ -213,16 +213,25 @@ impl SandboxManager {
             ));
         }
         if let Some(ref pkgs) = self.daemon_config.installed_pip {
-            s.push_str(&format!("Pre-installed pip packages: {}. ", pkgs));
+            s.push_str(&format!(
+                "Pre-installed pip packages (already installed, DO NOT run pip install for these): {}. ",
+                pkgs
+            ));
         }
         if let Some(ref pkgs) = self.daemon_config.installed_npm {
-            s.push_str(&format!("Pre-installed npm global packages: {}. ", pkgs));
+            s.push_str(&format!(
+                "Pre-installed npm global packages (already installed, DO NOT run npm install for these): {}. ",
+                pkgs
+            ));
         }
         if self.daemon_config.installed_packages.is_some()
             || self.daemon_config.installed_pip.is_some()
             || self.daemon_config.installed_npm.is_some()
         {
-            s.push_str("Use 'apk add <pkg>' only for packages not listed above. ");
+            s.push_str(
+                "IMPORTANT: All packages listed above are already installed and ready to use. \
+                 NEVER reinstall them. Just use them directly (e.g. require('pptxgenjs'), import docx, etc.). ",
+            );
         }
         s.push_str(
             "When installing pip packages, always use: pip install --break-system-packages <pkg>. ",
@@ -413,10 +422,16 @@ impl SandboxManager {
             ));
         }
         if let Some(ref pkgs) = self.daemon_config.installed_pip {
-            default_instructions.push(format!("Pre-installed pip packages: {}.", pkgs));
+            default_instructions.push(format!(
+                "Pre-installed pip packages (already installed, DO NOT run pip install for these): {}.",
+                pkgs
+            ));
         }
         if let Some(ref pkgs) = self.daemon_config.installed_npm {
-            default_instructions.push(format!("Pre-installed npm global packages: {}.", pkgs));
+            default_instructions.push(format!(
+                "Pre-installed npm global packages (already installed, DO NOT run npm install for these): {}.",
+                pkgs
+            ));
         }
         default_instructions.extend([
             "You have access to specialized skills. When a task involves a specific domain (PDF, PPTX, DOCX, XLSX, etc.), follow this workflow:".to_string(),
@@ -643,7 +658,7 @@ impl SandboxManager {
         // (mmap) for its CodeRange that don't consume actual RAM.
         let cpu_secs = 3600; // 1 hour max CPU time per command
         let wrapped = format!(
-            "export NODE_OPTIONS='--max-old-space-size={node_max_mb}'; ulimit -u {nproc} 2>/dev/null; ulimit -t {cpu_secs} 2>/dev/null; cd {cwd} 2>/dev/null; {command}; echo {CWD_MARKER}$(pwd)"
+            "export NODE_OPTIONS='--max-old-space-size={node_max_mb}'; export NODE_PATH=/usr/local/lib/node_modules:/usr/lib/node_modules; ulimit -u {nproc} 2>/dev/null; ulimit -t {cpu_secs} 2>/dev/null; cd {cwd} 2>/dev/null; {command}; echo {CWD_MARKER}$(pwd)"
         );
         let start = std::time::Instant::now();
         let child = Command::new("nsenter")
