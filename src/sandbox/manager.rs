@@ -314,7 +314,7 @@ impl SandboxManager {
             expires_at_str: format_system_time(now_sys + Duration::from_secs(timeout)),
             network_info,
             rootfs_path: Some(rootfs_path),
-            cwd: "/home/agent".to_string(),
+            cwd: "/".to_string(),
             commands_executed: 0,
             cumulative_cpu_usec: 0,
             opencode_port: None,
@@ -440,6 +440,8 @@ impl SandboxManager {
             "  3. If the skill references additional files (e.g. pptxgenjs.md, forms.md), call read_skill_file to read them.".to_string(),
             "  4. Follow the skill instructions exactly, using exec to run scripts.".to_string(),
             "Always load the relevant skill BEFORE attempting a specialized task.".to_string(),
+            "To check if an npm package is installed: npm list -g <pkg> 2>/dev/null || npm install -g <pkg>".to_string(),
+            "To check if a pip package is installed: python3 -c 'import <pkg>' 2>/dev/null || pip install --break-system-packages <pkg>".to_string(),
         ]);
         let instructions: Vec<String> = std::env::var("HIVEBOX_OPENCODE_INSTRUCTIONS")
             .map(|s| s.lines().map(|l| l.to_string()).collect())

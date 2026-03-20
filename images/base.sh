@@ -47,9 +47,6 @@ tar xzf "$TARBALL_PATH" -C "$ROOTFS_DIR"
 echo "nameserver 8.8.8.8" > "$ROOTFS_DIR/etc/resolv.conf"
 echo "nameserver 1.1.1.1" >> "$ROOTFS_DIR/etc/resolv.conf"
 
-# Create the default sandbox user home directory.
-mkdir -p "$ROOTFS_DIR/home/agent"
-chmod 755 "$ROOTFS_DIR/home/agent"
 
 # Create standard directories that sandbox processes expect.
 mkdir -p "$ROOTFS_DIR/tmp"
