@@ -314,7 +314,7 @@ impl SandboxManager {
             expires_at_str: format_system_time(now_sys + Duration::from_secs(timeout)),
             network_info,
             rootfs_path: Some(rootfs_path),
-            cwd: "/".to_string(),
+            cwd: "/home/agent".to_string(),
             commands_executed: 0,
             cumulative_cpu_usec: 0,
             opencode_port: None,
@@ -489,9 +489,14 @@ impl SandboxManager {
             .or(self.daemon_config.llm_api_key.as_ref());
         let eff_model = llm_model.as_ref().or(self.daemon_config.llm_model.as_ref());
 
+        // Write instructions to AGENTS.md so opencode picks them up as a rules file.
+        let agents_md_path = opencode_dir.join("AGENTS.md");
+        std::fs::write(&agents_md_path, instructions.join("\n"))
+            .with_context(|| "failed to write AGENTS.md")?;
+
         let mut config_json = serde_json::json!({
             "$schema": "https://opencode.ai/config.json",
-            "instructions": instructions,
+            "instructions": ["AGENTS.md"],
             "permission": {
                 "*": "deny",
                 "hivebox_*": "allow",
