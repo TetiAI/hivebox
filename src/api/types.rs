@@ -52,6 +52,10 @@ pub struct CreateSandboxRequest {
     /// Override LLM model (falls back to global HIVEBOX_OPENCODE_MODEL).
     #[serde(default)]
     pub llm_model: Option<String>,
+
+    /// Extra instructions for this sandbox's opencode agent (appended to defaults).
+    #[serde(default)]
+    pub instructions: Option<Vec<String>>,
 }
 
 fn default_memory() -> String {

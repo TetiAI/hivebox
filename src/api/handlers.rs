@@ -55,6 +55,7 @@ pub async fn create_sandbox(
         llm_base_url: req.llm_base_url,
         llm_api_key: req.llm_api_key,
         llm_model: req.llm_model,
+        instructions: req.instructions,
     };
 
     let sandbox_id = manager.create(config, req.timeout).await.map_err(|e| {

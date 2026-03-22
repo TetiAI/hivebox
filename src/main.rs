@@ -87,6 +87,7 @@ fn handle_run(args: cli::RunArgs) -> Result<()> {
         llm_base_url: None,
         llm_api_key: None,
         llm_model: None,
+        instructions: None,
     };
 
     let result = sandbox::create_and_run(&config).context("sandbox execution failed")?;
@@ -125,6 +126,7 @@ fn handle_create(args: cli::CreateArgs) -> Result<()> {
         llm_base_url: None,
         llm_api_key: None,
         llm_model: None,
+        instructions: None,
     };
 
     let rt = tokio::runtime::Runtime::new()?;

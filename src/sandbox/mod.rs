@@ -91,6 +91,10 @@ pub struct SandboxConfig {
     /// Override the LLM model for this sandbox's opencode agent.
     #[serde(default)]
     pub llm_model: Option<String>,
+
+    /// Extra instructions appended to the default ones for this sandbox's opencode agent.
+    #[serde(default)]
+    pub instructions: Option<Vec<String>>,
 }
 
 impl Default for SandboxConfig {
@@ -106,6 +110,7 @@ impl Default for SandboxConfig {
             llm_base_url: None,
             llm_api_key: None,
             llm_model: None,
+            instructions: None,
         }
     }
 }

@@ -352,7 +352,7 @@ impl SandboxManager {
         let daemon_port = self.daemon_config.port;
 
         // Read sandbox-specific config before we build the opencode config.
-        let (skills, custom_mcps, llm_base_url, llm_api_key, llm_model) = {
+        let (skills, custom_mcps, llm_base_url, llm_api_key, llm_model, custom_instructions) = {
             let sandboxes = self.sandboxes.read().await;
             let sb = sandboxes
                 .get(sandbox_id)
@@ -363,6 +363,7 @@ impl SandboxManager {
                 sb.config.llm_base_url.clone(),
                 sb.config.llm_api_key.clone(),
                 sb.config.llm_model.clone(),
+                sb.config.instructions.clone(),
             )
         };
 
@@ -443,9 +444,14 @@ impl SandboxManager {
             "To check if an npm package is installed: npm list -g <pkg> 2>/dev/null || npm install -g <pkg>".to_string(),
             "To check if a pip package is installed: python3 -c 'import <pkg>' 2>/dev/null || pip install --break-system-packages <pkg>".to_string(),
         ]);
-        let instructions: Vec<String> = std::env::var("HIVEBOX_OPENCODE_INSTRUCTIONS")
+        let mut instructions: Vec<String> = std::env::var("HIVEBOX_OPENCODE_INSTRUCTIONS")
             .map(|s| s.lines().map(|l| l.to_string()).collect())
             .unwrap_or(default_instructions);
+
+        // Append per-sandbox custom instructions (from API request).
+        if let Some(ref custom) = custom_instructions {
+            instructions.extend(custom.iter().cloned());
+        }
 
         // Build the MCP section: hivebox (always present) + global MCPs + per-sandbox MCPs.
         let mut mcp_section = serde_json::Map::new();
