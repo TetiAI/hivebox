@@ -159,6 +159,7 @@ pub fn collect_child_output(
         stderr,
         duration_ms,
         cwd: None,
+        oom_killed: false,
     })
 }
 

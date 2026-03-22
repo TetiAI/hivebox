@@ -31,6 +31,10 @@ pub struct ExecResult {
     /// Current working directory after command execution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
+
+    /// True if the process was killed by the OOM killer (out of memory).
+    #[serde(default)]
+    pub oom_killed: bool,
 }
 
 impl ExecResult {

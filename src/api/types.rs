@@ -120,6 +120,9 @@ pub struct ExecResponse {
     pub stdout: String,
     pub stderr: String,
     pub duration_ms: u64,
+    /// True if the process was killed by the OOM killer (memory limit exceeded).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub oom_killed: bool,
 }
 
 /// Sandbox status response for `GET /api/v1/hiveboxes/:id`.
@@ -156,6 +159,9 @@ pub struct SandboxSummary {
     pub memory_usage_bytes: u64,
     pub pid_current: u64,
     pub cpu_usage_usec: u64,
+    /// Memory warning message if usage is above 80% of limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_warning: Option<String>,
     /// URL path for the opencode serve proxy (if running).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub opencode_url: Option<String>,

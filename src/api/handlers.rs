@@ -94,6 +94,26 @@ pub async fn list_sandboxes(State(state): State<AppState>) -> Json<ListSandboxes
             let opencode_url = s
                 .opencode_port
                 .map(|_| format!("/api/v1/hiveboxes/{}/opencode/", s.id));
+            // Generate memory warning if usage exceeds 80% of limit.
+            let memory_warning = crate::sandbox::cgroup::parse_memory_size(&s.memory_limit)
+                .ok()
+                .and_then(|limit_bytes| {
+                    if limit_bytes > 0 && s.memory_usage_bytes > 0 {
+                        let pct = (s.memory_usage_bytes as f64 / limit_bytes as f64) * 100.0;
+                        if pct >= 80.0 {
+                            Some(format!(
+                                "Memory usage at {:.0}% ({} MiB / {} MiB)",
+                                pct,
+                                s.memory_usage_bytes / (1024 * 1024),
+                                limit_bytes / (1024 * 1024),
+                            ))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                });
             SandboxSummary {
                 id: s.id,
                 status: format!("{:?}", s.state).to_lowercase(),
@@ -107,6 +127,7 @@ pub async fn list_sandboxes(State(state): State<AppState>) -> Json<ListSandboxes
                 memory_usage_bytes: s.memory_usage_bytes,
                 pid_current: s.pid_current,
                 cpu_usage_usec: s.cpu_usage_usec,
+                memory_warning,
                 opencode_url,
             }
         })
@@ -173,6 +194,7 @@ pub async fn exec_in_sandbox(
         stdout: result.stdout,
         stderr: result.stderr,
         duration_ms: result.duration_ms,
+        oom_killed: result.oom_killed,
     }))
 }
 

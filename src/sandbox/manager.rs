@@ -695,9 +695,13 @@ impl SandboxManager {
 
         // Add the nsenter process (and its children) to the sandbox's cgroup
         // so resource usage is tracked correctly.
-        if let Ok(cg) = CgroupManager::open(sandbox_id) {
+        let cg_for_exec = CgroupManager::open(sandbox_id).ok();
+        if let Some(ref cg) = cg_for_exec {
             let _ = cg.add_process(nix::unistd::Pid::from_raw(child.id() as i32));
         }
+
+        // Snapshot OOM kill count before command so we can detect new OOM kills.
+        let oom_before = cg_for_exec.as_ref().map(|c| c.oom_kill_count()).unwrap_or(0);
 
         // Snapshot namespace CPU before command for delta tracking.
         let cpu_before = cpu_from_namespace(init_pid);
@@ -721,6 +725,17 @@ impl SandboxManager {
             duration_ms * 1000
         };
 
+        // Detect OOM kill: compare oom_kill count before/after command execution.
+        let oom_after = cg_for_exec.as_ref().map(|c| c.oom_kill_count()).unwrap_or(0);
+        let oom_killed = oom_after > oom_before;
+        if oom_killed {
+            warn!(
+                sandbox = sandbox_id,
+                oom_kills = oom_after - oom_before,
+                "command was OOM-killed (memory limit exceeded)"
+            );
+        }
+
         let exit_code = output.status.code().unwrap_or(-1);
         let raw_stdout = String::from_utf8_lossy(&output.stdout).to_string();
 
@@ -743,12 +758,24 @@ impl SandboxManager {
             }
         }
 
+        let mut stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        if oom_killed {
+            if !stderr.is_empty() && !stderr.ends_with('\n') {
+                stderr.push('\n');
+            }
+            let mem_mb = limits.memory_bytes / (1024 * 1024);
+            stderr.push_str(&format!(
+                "[hivebox] Process killed: out of memory (limit: {mem_mb} MiB). Use --memory to increase the limit."
+            ));
+        }
+
         Ok(crate::runtime::ExecResult {
             exit_code,
             stdout: clean_stdout,
-            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            stderr,
             duration_ms,
             cwd: new_cwd,
+            oom_killed,
         })
     }
 
@@ -951,6 +978,21 @@ impl SandboxManager {
                         pids = ns_pids;
                     }
                 }
+                // Warn if memory usage exceeds 80% of limit.
+                let limit = s.config.limits.memory_bytes;
+                if limit > 0 && mem > 0 {
+                    let pct = (mem as f64 / limit as f64) * 100.0;
+                    if pct >= 80.0 {
+                        warn!(
+                            sandbox = s.id,
+                            usage_mb = mem / (1024 * 1024),
+                            limit_mb = limit / (1024 * 1024),
+                            percent = format!("{:.0}", pct),
+                            "memory usage above 80% — approaching OOM"
+                        );
+                    }
+                }
+
                 total_mem += mem;
                 total_cpu += cpu;
                 total_pids += pids;

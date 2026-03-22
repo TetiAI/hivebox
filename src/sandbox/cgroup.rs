@@ -192,6 +192,39 @@ impl CgroupManager {
         Ok(())
     }
 
+    /// Returns the memory limit configured for this cgroup in bytes.
+    ///
+    /// Reads `memory.max`. Returns `None` if the limit is "max" (unlimited).
+    pub fn memory_limit(&self) -> Result<Option<u64>> {
+        let content = self.read_file("memory.max")?;
+        let trimmed = content.trim();
+        if trimmed == "max" {
+            Ok(None)
+        } else {
+            Ok(Some(
+                trimmed
+                    .parse::<u64>()
+                    .context("failed to parse memory.max")?,
+            ))
+        }
+    }
+
+    /// Returns the number of OOM kills that have occurred in this cgroup.
+    ///
+    /// Reads `oom_kill` from `memory.events`. Returns 0 if unavailable.
+    pub fn oom_kill_count(&self) -> u64 {
+        let content = match self.read_file("memory.events") {
+            Ok(c) => c,
+            Err(_) => return 0,
+        };
+        for line in content.lines() {
+            if let Some(val) = line.strip_prefix("oom_kill ") {
+                return val.trim().parse::<u64>().unwrap_or(0);
+            }
+        }
+        0
+    }
+
     /// Returns the current memory usage of the sandbox in bytes.
     pub fn memory_usage(&self) -> Result<u64> {
         let content = self.read_file("memory.current")?;
