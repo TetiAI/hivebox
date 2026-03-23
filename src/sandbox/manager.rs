@@ -701,7 +701,10 @@ impl SandboxManager {
         }
 
         // Snapshot OOM kill count before command so we can detect new OOM kills.
-        let oom_before = cg_for_exec.as_ref().map(|c| c.oom_kill_count()).unwrap_or(0);
+        let oom_before = cg_for_exec
+            .as_ref()
+            .map(|c| c.oom_kill_count())
+            .unwrap_or(0);
 
         // Snapshot namespace CPU before command for delta tracking.
         let cpu_before = cpu_from_namespace(init_pid);
@@ -726,7 +729,10 @@ impl SandboxManager {
         };
 
         // Detect OOM kill: compare oom_kill count before/after command execution.
-        let oom_after = cg_for_exec.as_ref().map(|c| c.oom_kill_count()).unwrap_or(0);
+        let oom_after = cg_for_exec
+            .as_ref()
+            .map(|c| c.oom_kill_count())
+            .unwrap_or(0);
         let oom_killed = oom_after > oom_before;
         if oom_killed {
             warn!(
