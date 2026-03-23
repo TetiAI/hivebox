@@ -1,22 +1,22 @@
 #!/bin/sh
 # Build the base HiveBox sandbox image.
 #
-# Downloads Alpine Linux minirootfs and packages it as a squashfs image.
-# This is the foundation for all other images — it contains busybox, apk,
-# and the minimal Alpine userspace.
+# Creates a minimal Debian rootfs using debootstrap and packages it as squashfs.
+# This is the foundation for all other images — it contains apt, coreutils,
+# and the minimal Debian userspace with glibc.
 #
-# Requirements: wget, squashfs-tools (mksquashfs), tar
+# Requirements: debootstrap, squashfs-tools (mksquashfs)
 # Must run as root (or in a build container).
 #
 # Usage: ./images/base.sh [output_dir]
 #
-# Output: {output_dir}/base.squashfs (~5 MB)
+# Output: {output_dir}/base.squashfs (~25-35 MB)
 
 set -eu
 
-ALPINE_VERSION="${ALPINE_VERSION:-3.21}"
-ALPINE_MINOR="${ALPINE_MINOR:-3}"
-ARCH="${ARCH:-x86_64}"
+DEBIAN_SUITE="${DEBIAN_SUITE:-bookworm}"
+DEBIAN_MIRROR="${DEBIAN_MIRROR:-http://deb.debian.org/debian}"
+ARCH="${ARCH:-amd64}"
 OUTPUT_DIR="${1:-/var/lib/hivebox/images}"
 WORK_DIR="$(mktemp -d)"
 
@@ -26,27 +26,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
-TARBALL_URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/${ARCH}/alpine-minirootfs-${ALPINE_VERSION}.${ALPINE_MINOR}-${ARCH}.tar.gz"
-TARBALL_PATH="$WORK_DIR/minirootfs.tar.gz"
 ROOTFS_DIR="$WORK_DIR/rootfs"
 
 echo "=== Building base HiveBox image ==="
-echo "Alpine version: ${ALPINE_VERSION}.${ALPINE_MINOR}"
+echo "Debian suite: ${DEBIAN_SUITE}"
 echo "Architecture: ${ARCH}"
 
-# Download the Alpine minirootfs tarball.
-echo "Downloading Alpine minirootfs..."
-wget -q -O "$TARBALL_PATH" "$TARBALL_URL"
+# Create minimal Debian rootfs using debootstrap.
+echo "Running debootstrap (this may take a minute)..."
+debootstrap \
+    --variant=minbase \
+    --arch="$ARCH" \
+    --include=apt,ca-certificates,curl,wget,procps \
+    "$DEBIAN_SUITE" \
+    "$ROOTFS_DIR" \
+    "$DEBIAN_MIRROR"
 
-# Extract to the rootfs working directory.
-echo "Extracting rootfs..."
-mkdir -p "$ROOTFS_DIR"
-tar xzf "$TARBALL_PATH" -C "$ROOTFS_DIR"
-
-# Set up DNS resolution for package installation.
+# Set up DNS resolution.
 echo "nameserver 8.8.8.8" > "$ROOTFS_DIR/etc/resolv.conf"
 echo "nameserver 1.1.1.1" >> "$ROOTFS_DIR/etc/resolv.conf"
-
 
 # Create standard directories that sandbox processes expect.
 mkdir -p "$ROOTFS_DIR/tmp"
@@ -55,6 +53,16 @@ mkdir -p "$ROOTFS_DIR/run"
 
 # Set a default hostname (will be overridden by the sandbox).
 echo "hivebox" > "$ROOTFS_DIR/etc/hostname"
+
+# Slim down the rootfs: remove docs, man pages, locale data, apt cache.
+rm -rf "$ROOTFS_DIR/usr/share/doc"
+rm -rf "$ROOTFS_DIR/usr/share/man"
+rm -rf "$ROOTFS_DIR/usr/share/info"
+rm -rf "$ROOTFS_DIR/usr/share/locale"
+rm -rf "$ROOTFS_DIR/var/cache/apt"
+rm -rf "$ROOTFS_DIR/var/lib/apt/lists"
+mkdir -p "$ROOTFS_DIR/var/cache/apt/archives/partial"
+mkdir -p "$ROOTFS_DIR/var/lib/apt/lists/partial"
 
 # Package as squashfs with zstd compression for fast decompression.
 echo "Creating squashfs image..."

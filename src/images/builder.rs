@@ -1,7 +1,7 @@
 //! Image building — creates squashfs images from build scripts.
 //!
 //! Each image has a corresponding shell script in the `images/` directory
-//! (e.g., `images/python.sh`) that downloads Alpine minirootfs, installs
+//! (e.g., `images/python.sh`) that uses debootstrap to create a Debian rootfs, installs
 //! packages, and produces a `.squashfs` file.
 //!
 //! This module orchestrates running those scripts.
@@ -20,8 +20,8 @@ use tracing::info;
 /// # Requirements
 ///
 /// - Must run as root (build scripts use chroot and mount)
-/// - Must be on Alpine Linux or in an Alpine container (for apk)
-/// - Packages: squashfs-tools, wget, tar
+/// - Must be on a Debian-based system or in a Debian container (for debootstrap)
+/// - Packages: squashfs-tools, debootstrap
 pub fn build_image(name: &str, scripts_dir: &Path, output_dir: &Path) -> Result<()> {
     let script_path = scripts_dir.join(format!("{name}.sh"));
 

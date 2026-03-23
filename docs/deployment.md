@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- **OS**: Alpine Linux 3.19+ (or any Linux with kernel 5.15+)
+- **OS**: Any Linux with kernel 5.15+ (Debian, Ubuntu, etc.)
 - **Kernel features**: namespaces, cgroup v2, overlayfs, squashfs
 - **Runtime**: iproute2, iptables, util-linux, squashfs-tools
 
@@ -73,9 +73,9 @@ sudo bash scripts/build-images.sh
 ```
 
 This creates the base squashfs image in `/var/lib/hivebox/images/`:
-- `base.squashfs` — Alpine minimal (~5 MB)
+- `base.squashfs` — Debian minimal (~30 MB)
 
-To pre-install packages in all sandboxes, add them to the Dockerfile or the base image build script (`images/base.sh`). For per-sandbox packages, use `hivebox exec <sandbox> -- apk add <package>`.
+To pre-install packages in all sandboxes, add them to the Dockerfile or the base image build script (`images/base.sh`). For per-sandbox packages, use `hivebox exec <sandbox> -- apt-get install <package>`.
 
 ### 3. Configure
 
@@ -99,7 +99,7 @@ sudo chmod 600 /etc/hivebox/env
 hivebox daemon --port 7070
 ```
 
-**OpenRC (Alpine)**:
+**OpenRC**:
 ```bash
 sudo cp config/hivebox.openrc /etc/init.d/hivebox
 sudo chmod +x /etc/init.d/hivebox

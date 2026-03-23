@@ -203,7 +203,7 @@ impl SandboxManager {
     /// Builds the MCP instructions string, including pre-installed package info.
     pub fn mcp_instructions(&self) -> String {
         let mut s = String::from(
-            "HiveBox is a lightweight Linux sandbox running Alpine Linux (musl libc, apk package manager). \
+            "HiveBox is a lightweight Linux sandbox running Debian Linux (glibc, apt package manager). \
              Commands run as root. The default working directory is /. ",
         );
         if let Some(ref pkgs) = self.daemon_config.installed_packages {
@@ -410,7 +410,7 @@ impl SandboxManager {
 
         // Build instructions for the AI agent.
         let mut default_instructions = vec![
-            format!("You are operating inside a HiveBox sandbox (ID: {sandbox_id}) running Alpine Linux (musl libc)."),
+            format!("You are operating inside a HiveBox sandbox (ID: {sandbox_id}) running Debian Linux (glibc)."),
             "The sandbox has limited resources and no persistent storage — files are lost on destroy.".to_string(),
             "Use the MCP tools available to you (exec, read_file, write_file, etc.) to interact with the sandbox filesystem.".to_string(),
             "When installing pip packages, always use: pip install --break-system-packages <pkg>".to_string(),

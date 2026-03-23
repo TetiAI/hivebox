@@ -7,7 +7,7 @@
 
 **Native Linux sandboxing built for the AI era.**
 
-HiveBox turns Alpine Linux into a platform where sandboxing is a first-class primitive. No containers, no VMs — just direct kernel isolation (namespaces, cgroups, seccomp, Landlock) exposed through a simple CLI and REST API.
+HiveBox turns Linux into a platform where sandboxing is a first-class primitive. No containers, no VMs — just direct kernel isolation (namespaces, cgroups, seccomp, Landlock) exposed through a simple CLI and REST API.
 
 Each **hivebox** is a lightweight, isolated Linux sandbox with its own [OpenCode](https://opencode.ai) AI agent. Launch thousands on a single host — each running arbitrary commands in complete isolation with near-zero overhead, and each with a dedicated AI coding assistant accessible via API or the built-in web dashboard.
 
@@ -41,7 +41,7 @@ Same security. A fraction of the resources. The smartest infrastructure is the o
 
 ## Deploy
 
-One command on any Linux VPS (Ubuntu, Debian, Alpine, etc.):
+One command on any Linux VPS (Ubuntu, Debian, etc.):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TetiAI/hivebox/main/scripts/setup.sh | sudo bash
@@ -60,7 +60,7 @@ curl -fsSL https://raw.githubusercontent.com/TetiAI/hivebox/main/scripts/setup.s
   sudo -E bash
 ```
 
-`HIVEBOX_PACKAGES` installs extra Alpine packages into every sandbox at startup. All settings are saved in `/opt/hivebox/.env` and persist across restarts.
+`HIVEBOX_PACKAGES` installs extra Debian packages into every sandbox at startup. All settings are saved in `/opt/hivebox/.env` and persist across restarts.
 
 ## Quick Start
 
@@ -211,9 +211,9 @@ No external dependencies — everything is embedded in the binary.
 
 HiveBox uses three components:
 
-1. **Alpine Linux host** — unmodified vanilla Alpine (or any Linux with kernel 5.15+)
+1. **Linux host** — any Linux with kernel 5.15+ (Debian, Ubuntu, etc.)
 2. **`hivebox` binary** — single static Rust binary (~5 MB) managing hivebox lifecycle
-3. **Rootfs image** — single Alpine base squashfs image mounted with overlayfs
+3. **Rootfs image** — Debian base squashfs image mounted with overlayfs
 
 ### Six Layers of Isolation
 
@@ -248,7 +248,7 @@ Each hivebox uses overlayfs over squashfs base images:
 ```
 merged/ (rw)      <- hivebox sees this
   +-- upper/ (tmpfs)    <- writes go here (vanishes on destroy)
-  +-- squashfs/ (ro)    <- shared Alpine base across all hiveboxes
+  +-- squashfs/ (ro)    <- shared Debian base across all hiveboxes
 ```
 
 ### Networking
@@ -263,7 +263,7 @@ Requires Rust toolchain. Target platform: Linux with kernel 5.15+.
 # Development build
 cargo build
 
-# Static release build (for Alpine deployment)
+# Static release build (musl, runs on any Linux)
 cargo build --release --target x86_64-unknown-linux-musl
 
 # The binary is fully static — copy it anywhere
@@ -294,7 +294,7 @@ docker run --privileged --cgroupns=host -p 7070:7070 \
 | `HIVEBOX_OPENCODE_MODEL` | Default LLM model for all sandboxes | *(opencode default)* |
 | `HIVEBOX_OPENCODE_SKILLS_PATH` | Path to skills directory | `/opt/hivebox/skills` |
 | `HIVEBOX_OPENCODE_MCPS` | JSON of global MCP servers added to every sandbox | *(none)* |
-| `HIVEBOX_PACKAGES` | Alpine packages to install at startup (also reported to agents as pre-installed) | *(none)* |
+| `HIVEBOX_PACKAGES` | Debian packages to install at startup (also reported to agents as pre-installed) | *(none)* |
 | `HIVEBOX_PIP_PACKAGES` | pip packages to install at startup (also reported to agents as pre-installed) | *(none)* |
 | `HIVEBOX_NPM_PACKAGES` | npm global packages to install at startup (also reported to agents as pre-installed) | *(none)* |
 
@@ -311,7 +311,7 @@ All LLM and MCP settings can be overridden per-sandbox at creation time via the 
 sudo bash scripts/build-images.sh
 ```
 
-This builds the Alpine base squashfs image. To pre-install packages in all hiveboxes, add them to the Dockerfile or the base image build script. For per-hivebox packages, use `hivebox exec <name> -- apk add <package>`.
+This builds the Debian base squashfs image. To pre-install packages in all hiveboxes, add them to the Dockerfile or the base image build script. For per-hivebox packages, use `hivebox exec <name> -- apt-get install <package>`.
 
 ### Start the daemon
 
@@ -319,7 +319,7 @@ This builds the Alpine base squashfs image. To pre-install packages in all hiveb
 # Direct
 hivebox daemon --port 7070 --api-key your-secret-key
 
-# OpenRC (Alpine)
+# OpenRC
 sudo cp config/hivebox.openrc /etc/init.d/hivebox
 sudo rc-update add hivebox default
 sudo rc-service hivebox start

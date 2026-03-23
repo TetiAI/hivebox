@@ -3,7 +3,7 @@
 //! A sandbox is an isolated Linux environment created using kernel primitives:
 //! namespaces for isolation, cgroups for resource limits, and pivot_root for
 //! filesystem separation. From inside, it looks and behaves like a complete
-//! Alpine Linux system. From outside, it's just a set of constrained processes.
+//! Debian Linux system. From outside, it's just a set of constrained processes.
 //!
 //! # Phase 1 flow (one-shot)
 //!
@@ -55,7 +55,7 @@ pub struct SandboxConfig {
     #[serde(default)]
     pub name: Option<String>,
 
-    /// Rootfs image name (always "base" Alpine).
+    /// Rootfs image name (always "base" Debian).
     pub image: String,
 
     /// Resource limits (memory, CPU, PIDs).

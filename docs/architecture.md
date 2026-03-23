@@ -71,7 +71,7 @@ Any unlisted syscall returns `EPERM`.
 ```
 /var/lib/hivebox/
 ├── images/
-│   └── base.squashfs        # Alpine minirootfs (read-only)
+│   └── base.squashfs        # Debian minirootfs (read-only)
 ├── sandboxes/
 │   └── hb-7f3a9b/
 │       ├── squashfs/         # squashfs mount (read-only lower)

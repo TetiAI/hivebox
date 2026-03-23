@@ -2,7 +2,7 @@
 // and will be used as the project matures (images CLI, SSE streaming, etc.).
 #![allow(dead_code, unused_imports)]
 
-//! HiveBox — lightweight native sandboxing on Alpine Linux.
+//! HiveBox — lightweight native sandboxing on Debian Linux.
 //!
 //! This is the entry point for the `hivebox` binary, which serves as both
 //! the CLI client and the daemon. It dispatches to the appropriate handler

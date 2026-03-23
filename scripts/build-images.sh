@@ -1,13 +1,13 @@
 #!/bin/sh
 # Build the HiveBox base rootfs image.
 #
-# Creates the Alpine base squashfs image used as the read-only lower
+# Creates the Debian base squashfs image used as the read-only lower
 # layer for sandbox overlayfs mounts.
 #
 # Requirements:
 #   - Must run as root (for chroot and mount operations)
-#   - Must be on Alpine Linux or inside an Alpine container (for apk)
-#   - Packages: squashfs-tools wget tar
+#   - Must be on a Debian-based system or inside a Debian container (for debootstrap)
+#   - Packages: squashfs-tools debootstrap
 #
 # Usage:
 #   ./scripts/build-images.sh
@@ -16,7 +16,7 @@
 # Override with the HIVEBOX_IMAGES_DIR environment variable.
 #
 # To pre-install packages in all sandboxes, edit images/base.sh.
-# For per-sandbox packages, use: hivebox exec <sandbox> -- apk add <package>
+# For per-sandbox packages, use: hivebox exec <sandbox> -- apt-get install <package>
 
 set -eu
 
@@ -30,10 +30,10 @@ echo "Images to build: $IMAGES_TO_BUILD"
 echo ""
 
 # Verify we have the required tools.
-for tool in wget mksquashfs tar; do
+for tool in debootstrap mksquashfs; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "ERROR: Required tool '$tool' not found."
-        echo "Install with: apk add squashfs-tools wget tar"
+        echo "Install with: apt-get install squashfs-tools debootstrap"
         exit 1
     fi
 done

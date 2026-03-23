@@ -2,7 +2,7 @@
 name = "hivebox"
 version = "0.1.0"
 edition = "2021"
-description = "Lightweight native sandboxing on Alpine Linux using kernel primitives"
+description = "Lightweight native sandboxing on Linux using kernel primitives"
 license = "MIT"
 repository = "https://github.com/hivebox/hivebox"
 readme = "README.md"

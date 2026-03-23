@@ -23,7 +23,7 @@
 
 use clap::{Parser, Subcommand};
 
-/// HiveBox — lightweight native sandboxing on Alpine Linux.
+/// HiveBox — lightweight native sandboxing on Debian Linux.
 ///
 /// Creates isolated execution environments using Linux kernel primitives
 /// (namespaces, cgroups, seccomp) with near-zero overhead.

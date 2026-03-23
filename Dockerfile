@@ -1,6 +1,6 @@
 # HiveBox — multi-stage Docker build.
 #
-# The resulting image runs HiveBox inside a privileged Alpine container.
+# The resulting image runs HiveBox inside a privileged Debian container.
 # This is useful for deploying HiveBox on hosts where you don't want to
 # install it directly (e.g., cloud VMs, CI environments).
 #
@@ -26,23 +26,25 @@ COPY src/ src/
 RUN cargo build --release --target x86_64-unknown-linux-musl
 
 # --- Stage 2: Runtime image ---
-FROM alpine:3.21
+FROM debian:bookworm-slim
 
 LABEL org.opencontainers.image.source="https://github.com/TetiAI/hivebox" \
       org.opencontainers.image.description="Native Linux sandboxing built for the AI era" \
       org.opencontainers.image.licenses="MIT"
 
 # Install runtime dependencies for sandbox management.
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     iptables \
     util-linux \
     squashfs-tools \
+    debootstrap \
     curl \
     bash \
-    libstdc++ \
-    libgcc \
+    wget \
     ripgrep \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /var/lib/hivebox/images \
     && mkdir -p /var/lib/hivebox/sandboxes \
     && mkdir -p /var/lib/hivebox/network

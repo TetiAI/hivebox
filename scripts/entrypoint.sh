@@ -27,10 +27,10 @@ if [ -n "$current_sig" ] && [ "$current_sig" != "||" ]; then
         # Set up DNS for package installation.
         cp /etc/resolv.conf "$ROOTFS/etc/resolv.conf" 2>/dev/null || true
 
-        # 1. Alpine packages (apk is already in the minirootfs).
+        # 1. Debian packages (apt is in the base rootfs).
         if [ -n "${HIVEBOX_PACKAGES:-}" ]; then
-            echo "[hivebox]   -> Alpine packages: $HIVEBOX_PACKAGES"
-            chroot "$ROOTFS" /bin/sh -c "apk add --no-cache $HIVEBOX_PACKAGES" || echo "[hivebox] WARNING: some Alpine packages failed"
+            echo "[hivebox]   -> Debian packages: $HIVEBOX_PACKAGES"
+            chroot "$ROOTFS" /bin/sh -c "apt-get update && apt-get install -y --no-install-recommends $HIVEBOX_PACKAGES && rm -rf /var/lib/apt/lists/*" || echo "[hivebox] WARNING: some Debian packages failed"
         fi
 
         # 2. pip packages (python3/pip must be in HIVEBOX_PACKAGES).

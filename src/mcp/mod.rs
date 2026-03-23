@@ -173,7 +173,7 @@ impl HiveboxClient {
 /// Builds MCP instructions with pre-installed package info from env vars.
 fn build_mcp_instructions() -> String {
     let mut s = String::from(
-        "HiveBox is a lightweight Linux sandbox running Alpine Linux (musl libc, apk package manager). \
+        "HiveBox is a lightweight Linux sandbox running Debian Linux (glibc, apt package manager). \
          Commands run as root. The default working directory is /. ",
     );
     if let Ok(pkgs) = std::env::var("HIVEBOX_PACKAGES") {

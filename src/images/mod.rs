@@ -1,6 +1,6 @@
 //! Sandbox image management.
 //!
-//! Images are read-only squashfs files containing a complete Alpine Linux rootfs.
+//! Images are read-only squashfs files containing a complete Debian Linux rootfs.
 //! They serve as the base layer in the overlayfs stack — each sandbox gets the
 //! image as its read-only lower layer plus a writable tmpfs upper layer.
 //!
@@ -8,10 +8,10 @@
 //!
 //! ```text
 //! /var/lib/hivebox/images/
-//! ├── base.squashfs     (~5 MB)   — minimal Alpine with busybox
-//! ├── python.squashfs   (~45 MB)  — Alpine + Python 3 + pip
-//! ├── node.squashfs     (~40 MB)  — Alpine + Node.js + npm
-//! └── ml.squashfs       (~180 MB) — Alpine + Python + numpy/scipy/sklearn
+//! ├── base.squashfs     (~30 MB)  — minimal Debian with coreutils + apt
+//! ├── python.squashfs   (~80 MB)  — Debian + Python 3 + pip
+//! ├── node.squashfs     (~75 MB)  — Debian + Node.js + npm
+//! └── ml.squashfs       (~200 MB) — Debian + Python + numpy/scipy/sklearn
 //! ```
 //!
 //! Images are built by the scripts in `images/` and can be rebuilt at any time.
