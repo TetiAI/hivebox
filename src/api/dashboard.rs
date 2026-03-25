@@ -207,6 +207,43 @@ body.pg-open main{margin-right:560px}
 .agent-abort{background:transparent;color:var(--red);border:1px solid rgba(239,68,68,.3);border-radius:4px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:none}
 .agent-abort.on{display:inline-block}
 .agent-status-bar{display:flex;align-items:center;gap:8px;padding:4px 12px;background:#111;border-top:1px solid #1a1a1a;font-size:11px;color:#555;flex-shrink:0}
+
+/* Question modal */
+.q-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:200;align-items:center;justify-content:center}
+.q-overlay.on{display:flex}
+.q-modal{background:#18181b;border:1px solid #3f3f46;border-radius:12px;padding:0;width:580px;max-width:94vw;max-height:85vh;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+.q-header{padding:20px 24px 16px;border-bottom:1px solid #27272a}
+.q-header h3{font-size:16px;font-weight:700;color:#fafafa;margin:0 0 4px}
+.q-header p{font-size:12px;color:#71717a;margin:0}
+.q-body{padding:16px 24px;overflow-y:auto;max-height:60vh}
+.q-item{margin-bottom:20px}
+.q-item:last-child{margin-bottom:0}
+.q-label{font-size:13px;font-weight:600;color:#e4e4e7;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.q-label .q-idx{background:#eac01b;color:#000;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.q-opts{display:flex;flex-direction:column;gap:6px}
+.q-opt{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:#09090b;border:1px solid #27272a;border-radius:8px;cursor:pointer;transition:all .15s}
+.q-opt:hover{border-color:#52525b;background:#1a1a1f}
+.q-opt.selected{border-color:#eac01b;background:rgba(234,192,27,.06)}
+.q-opt input{display:none}
+.q-radio,.q-check{width:16px;height:16px;border-radius:50%;border:2px solid #52525b;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.q-check{border-radius:4px}
+.q-opt.selected .q-radio{border-color:#eac01b}
+.q-opt.selected .q-radio::after{content:'';width:8px;height:8px;border-radius:50%;background:#eac01b}
+.q-opt.selected .q-check{border-color:#eac01b;background:#eac01b}
+.q-opt.selected .q-check::after{content:'';width:8px;height:6px;border-left:2px solid #000;border-bottom:2px solid #000;transform:rotate(-45deg);margin-top:-2px}
+.q-opt-text{flex:1}
+.q-opt-label{font-size:13px;font-weight:500;color:#d4d4d8}
+.q-opt-desc{font-size:11px;color:#71717a;margin-top:2px}
+.q-custom{margin-top:8px}
+.q-custom input{width:100%;padding:8px 12px;background:#09090b;border:1px solid #27272a;border-radius:6px;color:#d4d4d8;font-size:13px;font-family:inherit}
+.q-custom input:focus{outline:none;border-color:#eac01b}
+.q-footer{padding:16px 24px;border-top:1px solid #27272a;display:flex;gap:10px;justify-content:flex-end}
+.q-btn{padding:8px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;border:none;transition:all .15s}
+.q-btn-submit{background:#eac01b;color:#000}
+.q-btn-submit:hover{background:#c9a417}
+.q-btn-submit:disabled{opacity:.4;cursor:default}
+.q-btn-skip{background:transparent;color:#71717a;border:1px solid #3f3f46}
+.q-btn-skip:hover{color:#a1a1aa;border-color:#52525b}
 .agent-status-bar .dot{width:6px;height:6px;border-radius:50%;background:#555}
 .agent-status-bar .dot.connected{background:#22c55e}
 .agent-status-bar .dot.busy{background:#eac01b;animation:pulse 1s infinite}
@@ -449,11 +486,28 @@ body.pg-open main{margin-right:560px}
   </div>
 </div>
 
+<!-- Question modal (askquestion) -->
+<div class="q-overlay" id="q-modal">
+  <div class="q-modal">
+    <div class="q-header">
+      <h3>Agent needs your input</h3>
+      <p id="q-subtitle">Answer the questions below to continue</p>
+    </div>
+    <div class="q-body" id="q-body"></div>
+    <div class="q-footer">
+      <button class="q-btn q-btn-skip" onclick="questionReject()">Skip</button>
+      <button class="q-btn q-btn-submit" id="q-submit" onclick="questionSubmit()">Submit</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let KEY='',CUR=null,SANDBOXES=[];
 let ANALYTICS_RANGE=900; // default 15 min
 let CHARTS={};
 let ANALYTICS_DATA=null;
+let Q_REQUEST_ID=null; // pending question request ID
+let Q_QUESTIONS=[]; // current questions data
 
 // Tabs
 function switchTab(name){
@@ -988,6 +1042,23 @@ function handleAgentEvent(ev){
   }
   if(t==='server.heartbeat')return;
 
+  // Question tool (askquestion) events
+  if(t==='question.asked'){
+    agentLog('\n<span class="ev-status">QUESTION</span> <span class="ev-time">Agent is asking for your input</span>\n');
+    questionShow(p.id, p.questions||[]);
+    return;
+  }
+  if(t==='question.replied'){
+    agentLog('<span class="ev-status">QUESTION</span> <span class="ev-time">answered</span>\n');
+    questionClose();
+    return;
+  }
+  if(t==='question.rejected'){
+    agentLog('<span class="ev-status">QUESTION</span> <span class="ev-time">skipped</span>\n');
+    questionClose();
+    return;
+  }
+
   if(t==='session.status'){
     const st=p.status?.type||'';
     if(st==='busy'){AG_BUSY=true;dot.className='dot busy';stat.textContent='Thinking...';abortBtn.classList.add('on');}
@@ -1074,12 +1145,131 @@ async function agentAbort(){
   await api('POST','/api/v1/hiveboxes/'+PG_CUR+'/opencode/session/'+AG_SES+'/abort');
 }
 
+// ── Question (askquestion) modal ──────────────────────────────────────
+
+function questionShow(requestId, questions){
+  Q_REQUEST_ID=requestId;
+  Q_QUESTIONS=questions;
+  const body=document.getElementById('q-body');
+  body.innerHTML='';
+
+  questions.forEach((q,qi)=>{
+    const div=document.createElement('div');
+    div.className='q-item';
+    div.dataset.qi=qi;
+    const multi=!!q.multiple;
+    const hasCustom=q.custom!==false; // default true
+
+    let html='<div class="q-label"><span class="q-idx">'+(qi+1)+'</span>'+esc(q.question||q.header||'Question '+(qi+1))+'</div>';
+    html+='<div class="q-opts">';
+
+    (q.options||[]).forEach((opt,oi)=>{
+      const label=typeof opt==='string'?opt:(opt.label||'');
+      const desc=typeof opt==='string'?'':(opt.description||'');
+      const indicator=multi?'<div class="q-check"></div>':'<div class="q-radio"></div>';
+      html+='<div class="q-opt" data-qi="'+qi+'" data-oi="'+oi+'" data-label="'+esc(label)+'" data-multi="'+multi+'" onclick="questionToggle(this)">'+
+        indicator+
+        '<div class="q-opt-text"><div class="q-opt-label">'+esc(label)+'</div>'+
+        (desc?'<div class="q-opt-desc">'+esc(desc)+'</div>':'')+
+        '</div></div>';
+    });
+
+    html+='</div>';
+    if(hasCustom){
+      html+='<div class="q-custom"><input type="text" placeholder="Or type a custom answer..." data-qi="'+qi+'" oninput="questionCustomInput(this)"></div>';
+    }
+    div.innerHTML=html;
+    body.appendChild(div);
+  });
+
+  document.getElementById('q-modal').classList.add('on');
+}
+
+function questionClose(){
+  document.getElementById('q-modal').classList.remove('on');
+  Q_REQUEST_ID=null;
+  Q_QUESTIONS=[];
+}
+
+function questionToggle(el){
+  const qi=el.dataset.qi;
+  const multi=el.dataset.multi==='true';
+  if(!multi){
+    // Single select: deselect siblings
+    document.querySelectorAll('.q-opt[data-qi="'+qi+'"]').forEach(o=>o.classList.remove('selected'));
+    el.classList.add('selected');
+    // Clear custom input for this question
+    const ci=document.querySelector('.q-custom input[data-qi="'+qi+'"]');
+    if(ci)ci.value='';
+  }else{
+    el.classList.toggle('selected');
+    const ci=document.querySelector('.q-custom input[data-qi="'+qi+'"]');
+    if(ci)ci.value='';
+  }
+}
+
+function questionCustomInput(inp){
+  const qi=inp.dataset.qi;
+  if(inp.value.trim()){
+    // Deselect all options for this question when typing custom
+    document.querySelectorAll('.q-opt[data-qi="'+qi+'"]').forEach(o=>o.classList.remove('selected'));
+  }
+}
+
+function questionCollectAnswers(){
+  const answers=[];
+  Q_QUESTIONS.forEach((q,qi)=>{
+    const selected=[];
+    document.querySelectorAll('.q-opt.selected[data-qi="'+qi+'"]').forEach(o=>{
+      selected.push(o.dataset.label);
+    });
+    // Check custom input
+    const ci=document.querySelector('.q-custom input[data-qi="'+qi+'"]');
+    if(ci&&ci.value.trim()&&selected.length===0){
+      selected.push(ci.value.trim());
+    }
+    answers.push(selected);
+  });
+  return answers;
+}
+
+async function questionSubmit(){
+  if(!Q_REQUEST_ID||!PG_CUR)return;
+  const answers=questionCollectAnswers();
+  // Check that each question has at least one answer
+  const empty=answers.findIndex(a=>a.length===0);
+  if(empty>=0){
+    const label=document.querySelectorAll('.q-label')[empty];
+    if(label)label.style.color='#f87171';
+    setTimeout(()=>{if(label)label.style.color='';},1500);
+    return;
+  }
+  const btn=document.getElementById('q-submit');
+  btn.disabled=true;btn.textContent='Sending...';
+  const{s}=await api('POST','/api/v1/hiveboxes/'+PG_CUR+'/opencode/question/'+Q_REQUEST_ID+'/reply',{answers:answers});
+  btn.disabled=false;btn.textContent='Submit';
+  if(s>=200&&s<300){
+    agentLog('<span class="ev-status">QUESTION</span> <span class="ev-time">your answers submitted</span>\n');
+    questionClose();
+  }else{
+    agentLog('<span class="ev-err">Failed to submit answers ('+s+')</span>\n');
+  }
+}
+
+async function questionReject(){
+  if(!Q_REQUEST_ID||!PG_CUR)return;
+  await api('POST','/api/v1/hiveboxes/'+PG_CUR+'/opencode/question/'+Q_REQUEST_ID+'/reject',{});
+  agentLog('<span class="ev-status">QUESTION</span> <span class="ev-time">skipped</span>\n');
+  questionClose();
+}
+
 // Auto-refresh every 5 seconds
 setInterval(()=>{if(KEY)refresh()},5000);
 
 // Modal close handlers
 document.getElementById('c-modal').addEventListener('click',function(e){if(e.target===this)closeCreate()});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeCreate();closePlayground()}});
+document.getElementById('q-modal').addEventListener('click',function(e){if(e.target===this)questionReject()});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeCreate();closePlayground();if(Q_REQUEST_ID)questionReject();}});
 
 
 </script>

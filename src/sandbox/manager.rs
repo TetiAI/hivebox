@@ -511,7 +511,8 @@ impl SandboxManager {
                 "todowrite": "allow",
                 "todoread": "allow",
                 "task": "allow",
-                "skill": "allow"
+                "skill": "allow",
+                "question": "allow"
             },
             "mcp": mcp_section
         });
