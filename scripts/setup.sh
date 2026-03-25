@@ -87,13 +87,21 @@ HIVEBOX_OPENCODE_MODEL=${HIVEBOX_OPENCODE_MODEL:-}
 HIVEBOX_PACKAGES=${HIVEBOX_PACKAGES:-}
 HIVEBOX_PIP_PACKAGES=${HIVEBOX_PIP_PACKAGES:-}
 HIVEBOX_NPM_PACKAGES=${HIVEBOX_NPM_PACKAGES:-}
+HIVEBOX_OPENCODE_SKILLS_PATH=${HIVEBOX_OPENCODE_SKILLS_PATH:-}
 RUST_LOG=${RUST_LOG:-info}
 EOF
     ok "Wrote .env"
 fi
 
 # --- Write docker-compose.yml ---
-cat > docker-compose.yml <<'YAML'
+# Build volumes list — always include base volumes, add skills mount if configured.
+SKILLS_VOLUME=""
+if [ -n "${HIVEBOX_OPENCODE_SKILLS_PATH:-}" ]; then
+    SKILLS_VOLUME="      - ${HIVEBOX_OPENCODE_SKILLS_PATH}:/opt/hivebox/skills:ro"
+    info "Custom skills directory: ${HIVEBOX_OPENCODE_SKILLS_PATH} -> /opt/hivebox/skills"
+fi
+
+cat > docker-compose.yml <<YAML
 services:
   hivebox:
     image: ghcr.io/tetiai/hivebox:latest
@@ -107,6 +115,7 @@ services:
     volumes:
       - hivebox-images:/var/lib/hivebox/images
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
+${SKILLS_VOLUME:+$SKILLS_VOLUME}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:7070/healthz"]
       interval: 30s

@@ -1016,6 +1016,23 @@ function handleAgentEvent(ev){
       const tok=part.tokens||{};
       const cost=part.cost||0;
       agentLog('\n<span class="ev-sep"></span><span class="ev-type">STEP DONE</span> <span class="ev-time">reason='+esc(part.reason||'')+' tokens='+JSON.stringify(tok)+'</span>\n');
+    }else if(part.type==='tool'){
+      const st=part.state||{};
+      const toolName=part.tool||'';
+      if(st.status==='pending'){
+        agentLog('\n<span class="ev-tool">TOOL: '+esc(toolName)+'</span> <span class="ev-time">pending...</span>\n');
+      }else if(st.status==='running'){
+        const args=st.input||{};
+        agentLog('<span class="ev-tool">TOOL: '+esc(toolName)+'</span> <span class="ev-time">running</span>\n');
+        if(Object.keys(args).length)agentLog('<span class="ev-data">'+esc(JSON.stringify(args).substring(0,500))+'</span>\n');
+      }else if(st.status==='completed'){
+        const out=st.output||'';
+        agentLog('<span class="ev-tool">TOOL: '+esc(toolName)+'</span> <span class="ev-time">done</span>\n');
+        if(out)agentLog('<span class="ev-data">'+esc(typeof out==='string'?out.substring(0,500):JSON.stringify(out).substring(0,500))+'</span>\n');
+      }else if(st.status==='error'){
+        agentLog('<span class="ev-tool">TOOL: '+esc(toolName)+'</span> <span class="ev-err">error</span>\n');
+        if(st.error)agentLog('<span class="ev-err">'+esc(st.error)+'</span>\n');
+      }
     }else if(part.type==='tool-invocation'){
       agentLog('\n<span class="ev-tool">TOOL: '+esc(part.toolName||'')+'</span>\n');
       if(part.args)agentLog('<span class="ev-data">'+esc(typeof part.args==='string'?part.args:JSON.stringify(part.args))+'</span>\n');
