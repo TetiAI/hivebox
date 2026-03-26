@@ -51,8 +51,10 @@ fn daemon_config_from_env(port: u16, api_key: Option<String>) -> DaemonConfig {
         .unwrap_or(true);
 
     let skills_path = std::env::var("HIVEBOX_OPENCODE_SKILLS_PATH")
+        .ok()
+        .filter(|s| !s.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/opt/hivebox/skills"));
+        .unwrap_or_else(|| PathBuf::from("/opt/hivebox/skills"));
 
     let global_mcps = std::env::var("HIVEBOX_OPENCODE_MCPS")
         .ok()
