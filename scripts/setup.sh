@@ -128,6 +128,12 @@ volumes:
 YAML
 ok "Wrote $INSTALL_DIR/docker-compose.yml"
 
+# --- Stop existing and clean up if force ---
+if [ -n "${HIVEBOX_FORCE:-}" ]; then
+    info "Force mode: stopping existing container and clearing cached images..."
+    $COMPOSE down -v 2>/dev/null || true
+fi
+
 # --- Pull and start ---
 info "Pulling $HIVEBOX_IMAGE ..."
 $COMPOSE pull
