@@ -672,7 +672,7 @@ impl SandboxManager {
         // (mmap) for its CodeRange that don't consume actual RAM.
         let cpu_secs = 3600; // 1 hour max CPU time per command
         let wrapped = format!(
-            "export NODE_OPTIONS='--max-old-space-size={node_max_mb}'; export NODE_PATH=/usr/local/lib/node_modules:/usr/lib/node_modules; ulimit -u {nproc} 2>/dev/null; ulimit -t {cpu_secs} 2>/dev/null; cd {cwd} 2>/dev/null; {command}; echo {CWD_MARKER}$(pwd)"
+            "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; export NODE_OPTIONS='--max-old-space-size={node_max_mb}'; export NODE_PATH=/usr/local/lib/node_modules:/usr/lib/node_modules; ulimit -u {nproc} 2>/dev/null; ulimit -t {cpu_secs} 2>/dev/null; cd {cwd} 2>/dev/null; {command}; echo {CWD_MARKER}$(pwd)"
         );
         let start = std::time::Instant::now();
         let child = Command::new("nsenter")
