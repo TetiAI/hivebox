@@ -480,8 +480,27 @@ pub fn generate_resolv_conf(sandbox_id: &str) -> Result<PathBuf> {
         .join(sandbox_id)
         .join("resolv.conf");
 
-    // Read the host's DNS config, or use public DNS as fallback.
+    // Read the host's DNS config, filtering out loopback entries (e.g. Docker's
+    // 127.0.0.11) which are unreachable from sandbox network namespaces.
     let content = fs::read_to_string("/etc/resolv.conf")
+        .map(|c| {
+            let filtered: String = c
+                .lines()
+                .filter(|line| {
+                    if let Some(rest) = line.trim().strip_prefix("nameserver") {
+                        !rest.trim().starts_with("127.")
+                    } else {
+                        true
+                    }
+                })
+                .map(|l| format!("{l}\n"))
+                .collect();
+            if filtered.contains("nameserver") {
+                filtered
+            } else {
+                "nameserver 8.8.8.8\nnameserver 1.1.1.1\n".to_string()
+            }
+        })
         .unwrap_or_else(|_| "nameserver 8.8.8.8\nnameserver 1.1.1.1\n".to_string());
 
     fs::write(&path, content).context("failed to write sandbox resolv.conf")?;
