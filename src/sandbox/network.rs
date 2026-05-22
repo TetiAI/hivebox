@@ -228,42 +228,57 @@ fn bring_up_loopback(pid: Pid) -> Result<()> {
     Ok(())
 }
 
-/// Ensures a bridge interface exists and is configured.
+/// Ensures a bridge interface exists, is up, and has working NAT to the internet.
+///
+/// Idempotent: safe to call on every sandbox creation. Each call re-verifies
+/// the bridge admin state, IP assignment, `net.ipv4.ip_forward`, and the
+/// iptables MASQUERADE rule, repairing whichever is missing. This is important
+/// because a long-running daemon can lose any of these between sandboxes
+/// (bridge knocked down by external action, iptables flushed by Docker reload,
+/// sysctl reset).
 fn ensure_bridge(name: &str, gateway: &str) -> Result<()> {
-    // Check if bridge already exists.
-    if run_cmd("ip", &["link", "show", name]).is_ok() {
-        debug!(bridge = name, "bridge already exists");
-        return Ok(());
+    let exists = run_cmd("ip", &["link", "show", name]).is_ok();
+
+    if !exists {
+        info!(bridge = name, gateway, "creating bridge");
+        run_cmd("ip", &["link", "add", name, "type", "bridge"])
+            .with_context(|| format!("failed to create bridge {name}"))?;
+
+        run_cmd(
+            "ip",
+            &["addr", "add", &format!("{gateway}/16"), "dev", name],
+        )
+        .with_context(|| format!("failed to assign IP to bridge {name}"))?;
+    } else {
+        debug!(bridge = name, "bridge already exists, verifying state");
     }
 
-    info!(bridge = name, gateway, "creating bridge");
-
-    // Create the bridge.
-    run_cmd("ip", &["link", "add", name, "type", "bridge"])
-        .with_context(|| format!("failed to create bridge {name}"))?;
-
-    // Assign the gateway IP.
-    run_cmd(
-        "ip",
-        &["addr", "add", &format!("{gateway}/16"), "dev", name],
-    )
-    .with_context(|| format!("failed to assign IP to bridge {name}"))?;
-
-    // Bring up the bridge.
+    // Always ensure the bridge is administratively up. A bridge can end up
+    // DOWN after its last veth peer is removed in some kernel configs, or
+    // if something external toggles it.
     run_cmd("ip", &["link", "set", name, "up"])
         .with_context(|| format!("failed to bring up bridge {name}"))?;
 
-    // Enable IP forwarding (required for NAT).
+    // Always ensure IP forwarding is enabled — required for NAT.
     let _ = fs::write("/proc/sys/net/ipv4/ip_forward", "1");
 
-    // Add iptables MASQUERADE rule for NAT.
-    // -t nat: operate on the NAT table
-    // -A POSTROUTING: append to the postrouting chain
-    // -s subnet: source address range
-    // -j MASQUERADE: rewrite source IP to the host's outgoing IP
-    let _ = run_cmd(
-        "iptables",
-        &[
+    // Always ensure the MASQUERADE rule exists. Use -C to check first so we
+    // do not pile up duplicate rules on every sandbox start.
+    let check = [
+        "-t",
+        "nat",
+        "-C",
+        "POSTROUTING",
+        "-s",
+        DEFAULT_SUBNET,
+        "!",
+        "-o",
+        name,
+        "-j",
+        "MASQUERADE",
+    ];
+    if run_cmd("iptables", &check).is_err() {
+        let add = [
             "-t",
             "nat",
             "-A",
@@ -275,8 +290,9 @@ fn ensure_bridge(name: &str, gateway: &str) -> Result<()> {
             name,
             "-j",
             "MASQUERADE",
-        ],
-    );
+        ];
+        let _ = run_cmd("iptables", &add);
+    }
 
     Ok(())
 }

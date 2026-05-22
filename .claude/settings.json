@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check *)",
+      "PowerShell(cargo check 2>&1)"
+    ]
+  }
+}
