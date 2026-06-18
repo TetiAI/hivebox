@@ -35,6 +35,7 @@
 //! ```
 
 use std::fs;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -143,10 +144,10 @@ pub fn setup_network(sandbox_id: &str, mode: &NetworkMode, child_pid: Pid) -> Re
             ensure_bridge(&bridge, DEFAULT_GATEWAY)?;
 
             let ip = allocate_ip(sandbox_id)?;
-            let veth_host = format!("veth-{}", &sandbox_id[..sandbox_id.len().min(6)]);
+            let veth_host = format!("veth-{}", veth_suffix(sandbox_id));
             let veth_sandbox = "eth0";
 
-            setup_veth_pair(
+            if let Err(e) = setup_veth_pair(
                 sandbox_id,
                 &veth_host,
                 veth_sandbox,
@@ -154,7 +155,10 @@ pub fn setup_network(sandbox_id: &str, mode: &NetworkMode, child_pid: Pid) -> Re
                 &ip,
                 DEFAULT_GATEWAY,
                 child_pid,
-            )?;
+            ) {
+                let _ = release_ip(sandbox_id);
+                return Err(e);
+            }
 
             Ok(NetworkInfo {
                 mode: mode.clone(),
@@ -170,10 +174,10 @@ pub fn setup_network(sandbox_id: &str, mode: &NetworkMode, child_pid: Pid) -> Re
             ensure_bridge(&bridge, gateway)?;
 
             let ip = allocate_ip(sandbox_id)?;
-            let veth_host = format!("veth-{}", &sandbox_id[..sandbox_id.len().min(6)]);
+            let veth_host = format!("veth-{}", veth_suffix(sandbox_id));
             let veth_sandbox = "eth0";
 
-            setup_veth_pair(
+            if let Err(e) = setup_veth_pair(
                 sandbox_id,
                 &veth_host,
                 veth_sandbox,
@@ -181,7 +185,10 @@ pub fn setup_network(sandbox_id: &str, mode: &NetworkMode, child_pid: Pid) -> Re
                 &ip,
                 gateway,
                 child_pid,
-            )?;
+            ) {
+                let _ = release_ip(sandbox_id);
+                return Err(e);
+            }
 
             Ok(NetworkInfo {
                 mode: mode.clone(),
@@ -259,8 +266,34 @@ fn ensure_bridge(name: &str, gateway: &str) -> Result<()> {
     run_cmd("ip", &["link", "set", name, "up"])
         .with_context(|| format!("failed to bring up bridge {name}"))?;
 
+    // Ensure the bridge has the expected gateway IP even when it already exists.
+    let bridge_has_gateway = run_cmd(
+        "ip",
+        &[
+            "-4",
+            "addr",
+            "show",
+            "dev",
+            name,
+            "to",
+            &format!("{gateway}/16"),
+        ],
+    )
+    .is_ok();
+    if !bridge_has_gateway {
+        run_cmd(
+            "ip",
+            &["addr", "add", &format!("{gateway}/16"), "dev", name],
+        )
+        .with_context(|| {
+            format!("failed to assign missing gateway IP {gateway}/16 on bridge {name}")
+        })?;
+    }
+
     // Always ensure IP forwarding is enabled — required for NAT.
-    let _ = fs::write("/proc/sys/net/ipv4/ip_forward", "1");
+    fs::write("/proc/sys/net/ipv4/ip_forward", "1").with_context(|| {
+        "failed to enable net.ipv4.ip_forward (required for sandbox internet access)"
+    })?;
 
     // Always ensure the MASQUERADE rule exists. Use -C to check first so we
     // do not pile up duplicate rules on every sandbox start.
@@ -291,7 +324,8 @@ fn ensure_bridge(name: &str, gateway: &str) -> Result<()> {
             "-j",
             "MASQUERADE",
         ];
-        let _ = run_cmd("iptables", &add);
+        run_cmd("iptables", &add)
+            .with_context(|| "failed to add MASQUERADE rule for sandbox subnet")?;
     }
 
     Ok(())
@@ -312,7 +346,10 @@ fn setup_veth_pair(
 
     // Use a temporary name for the sandbox-side veth to avoid conflicts
     // (e.g., "eth0" already exists on the host inside Docker).
-    let veth_tmp = format!("vp-{}", &sandbox_id[..sandbox_id.len().min(6)]);
+    let veth_tmp = format!("vp-{}", veth_suffix(sandbox_id));
+
+    // If a stale interface with the same generated name exists, remove it first.
+    let _ = run_cmd("ip", &["link", "del", veth_host]);
 
     // Create the veth pair on the host with a temporary peer name.
     run_cmd(
@@ -409,6 +446,13 @@ fn setup_veth_pair(
     );
 
     Ok(())
+}
+
+fn veth_suffix(sandbox_id: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    sandbox_id.hash(&mut hasher);
+    let hex = format!("{:016x}", hasher.finish());
+    hex[..8].to_string()
 }
 
 /// Cleans up networking resources for a sandbox.

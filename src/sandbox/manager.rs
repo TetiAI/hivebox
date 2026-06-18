@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use serde::Serialize;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
@@ -289,6 +289,13 @@ impl SandboxManager {
         ) {
             Ok(info) => Some(info),
             Err(e) => {
+                if config.network != network::NetworkMode::None {
+                    cleanup_failed_create(&sandbox_id, init_pid);
+                    return Err(anyhow!(e).context(format!(
+                        "failed to initialize network for sandbox '{}'",
+                        sandbox_id
+                    )));
+                }
                 warn!(sandbox = sandbox_id, error = %e, "network setup failed");
                 None
             }
@@ -1139,6 +1146,22 @@ fn spawn_init_process(
     );
 
     Ok(init_pid)
+}
+
+fn cleanup_failed_create(sandbox_id: &str, init_pid: i32) {
+    let _ = nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(init_pid),
+        nix::sys::signal::Signal::SIGKILL,
+    );
+    std::thread::sleep(Duration::from_millis(100));
+
+    if let Ok(cgroup) = CgroupManager::create(sandbox_id) {
+        let _ = cgroup.kill_all();
+        std::thread::sleep(Duration::from_millis(50));
+        let _ = cgroup.cleanup();
+    }
+
+    let _ = cleanup_rootfs(sandbox_id);
 }
 
 /// Cleans up all resources for a sandbox.
