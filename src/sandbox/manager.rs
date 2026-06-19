@@ -13,14 +13,16 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Child, Command};
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{anyhow, bail, Context, Result};
 use serde::Serialize;
+use tokio::net::TcpStream;
 use tokio::sync::RwLock;
+use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
 use super::cgroup::CgroupManager;
@@ -42,6 +44,15 @@ const METRICS_INTERVAL: u64 = 5;
 
 /// Maximum number of history samples to keep (4320 = 6 hours at 5s interval).
 const METRICS_HISTORY_MAX: usize = 4320;
+
+/// Opencode startup timeout for readiness checks.
+const OPENCODE_STARTUP_TIMEOUT: Duration = Duration::from_secs(45);
+
+/// Max attempts to start opencode before failing sandbox creation.
+const OPENCODE_MAX_START_ATTEMPTS: u32 = 3;
+
+/// Base retry delay between opencode start attempts.
+const OPENCODE_RETRY_BACKOFF: Duration = Duration::from_millis(750);
 
 /// Per-sandbox metric within a sample.
 #[derive(Debug, Clone, Serialize)]
@@ -588,20 +599,61 @@ impl SandboxManager {
             }
         }
 
-        // Spawn opencode serve.
-        let mut cmd = Command::new("opencode");
-        cmd.args(["serve", "--port", &port.to_string()])
-            .env("XDG_CONFIG_HOME", &config_dir)
-            .env("HOME", &config_dir)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
+        // Spawn opencode serve with readiness retries.
+        let mut started_pid: Option<u32> = None;
+        let mut last_start_err: Option<anyhow::Error> = None;
 
-        let child = cmd
-            .spawn()
-            .with_context(|| "failed to spawn opencode serve — is opencode installed?")?;
+        for attempt in 1..=OPENCODE_MAX_START_ATTEMPTS {
+            let mut cmd = Command::new("opencode");
+            cmd.args(["serve", "--port", &port.to_string()])
+                .env("XDG_CONFIG_HOME", &config_dir)
+                .env("HOME", &config_dir)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
 
-        let pid = child.id();
+            let mut child = cmd
+                .spawn()
+                .with_context(|| "failed to spawn opencode serve — is opencode installed?")?;
+            let pid = child.id();
+
+            match wait_for_opencode_ready(&mut child, port).await {
+                Ok(()) => {
+                    started_pid = Some(pid);
+                    break;
+                }
+                Err(e) => {
+                    warn!(
+                        sandbox = sandbox_id,
+                        opencode_port = port,
+                        opencode_pid = pid,
+                        attempt,
+                        max_attempts = OPENCODE_MAX_START_ATTEMPTS,
+                        error = %e,
+                        "opencode startup attempt failed"
+                    );
+                    stop_opencode_process(pid, &mut child);
+                    last_start_err = Some(e);
+                }
+            }
+
+            if attempt < OPENCODE_MAX_START_ATTEMPTS {
+                let backoff = Duration::from_millis(
+                    OPENCODE_RETRY_BACKOFF.as_millis() as u64 * attempt as u64,
+                );
+                sleep(backoff).await;
+            }
+        }
+
+        let Some(pid) = started_pid else {
+            let _ = std::fs::remove_dir_all(&config_dir);
+            let err =
+                last_start_err.unwrap_or_else(|| anyhow!("opencode serve failed to become ready"));
+            return Err(err.context(format!(
+                "failed to start opencode serve for sandbox {}",
+                sandbox_id
+            )));
+        };
 
         info!(
             sandbox = sandbox_id,
@@ -1146,6 +1198,75 @@ fn spawn_init_process(
     );
 
     Ok(init_pid)
+}
+
+async fn wait_for_opencode_ready(child: &mut std::process::Child, port: u16) -> Result<()> {
+    let deadline = Instant::now() + OPENCODE_STARTUP_TIMEOUT;
+    let health_url = format!("http://127.0.0.1:{port}/global/health");
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .with_context(|| "failed to create opencode readiness HTTP client")?;
+    let mut tcp_ready = false;
+
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .with_context(|| "failed to poll opencode serve process status")?
+        {
+            bail!("opencode serve exited early with status {status}");
+        }
+
+        if !tcp_ready {
+            if let Ok(Ok(_)) = tokio::time::timeout(
+                Duration::from_millis(250),
+                TcpStream::connect(("127.0.0.1", port)),
+            )
+            .await
+            {
+                tcp_ready = true;
+            }
+        }
+
+        if tcp_ready {
+            if let Ok(resp) = client.get(&health_url).send().await {
+                if resp.status().is_success() {
+                    return Ok(());
+                }
+            }
+        }
+
+        if Instant::now() >= deadline {
+            bail!(
+                "opencode serve did not become ready on {} within startup timeout",
+                health_url
+            );
+        }
+
+        sleep(Duration::from_millis(200)).await;
+    }
+}
+
+fn stop_opencode_process(pid: u32, child: &mut Child) {
+    let _ = nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(pid as i32),
+        nix::sys::signal::Signal::SIGTERM,
+    );
+    std::thread::sleep(Duration::from_millis(100));
+
+    let still_running = match child.try_wait() {
+        Ok(Some(_)) => false,
+        Ok(None) => true,
+        Err(_) => true,
+    };
+    if still_running {
+        let _ = nix::sys::signal::kill(
+            nix::unistd::Pid::from_raw(pid as i32),
+            nix::sys::signal::Signal::SIGKILL,
+        );
+        let _ = child.wait();
+    }
 }
 
 fn cleanup_failed_create(sandbox_id: &str, init_pid: i32) {
